@@ -53,7 +53,6 @@ def profile_emailchange(request):
 
         if form.is_valid():
             
-            # Check if the email already exists
             email = form.cleaned_data['email']
             if User.objects.filter(email=email).exclude(id=request.user.id).exists():
                 messages.warning(request, f'{email} is already in use.')
@@ -61,9 +60,9 @@ def profile_emailchange(request):
             
             form.save() 
             
-            # Then Signal updates emailaddress and set verified to False
+          
             
-            # Then send confirmation email 
+           
             send_email_confirmation(request, request.user)
             
             return redirect('profile-settings')
