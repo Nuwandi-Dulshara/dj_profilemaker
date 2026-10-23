@@ -1,13 +1,16 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
 import Builder from "./pages/Builder";
+import Dashboard from "./pages/Dashboard";
 import PublicProfile from "./pages/PublicProfile";
 import Auth from "./pages/Auth";
 
-export default function App() {
+function AppRoutes() {
+  const { pathname } = useLocation();
+  const showSiteFooter = !["/", "/login", "/register"].includes(pathname);
+
   return (
-    <BrowserRouter>
+    <>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
@@ -15,9 +18,33 @@ export default function App() {
         <Route path="/p/:slug" element={<PublicProfile />} />
         <Route path="/login" element={<Auth mode="login" />} />
         <Route path="/register" element={<Auth mode="register" />} />
-        <Route path="*" element={<div className="empty-state container"><h1>404 — Page Not Found</h1><Link to="/" className="btn btn-primary">Back to Home</Link></div>} />
+        <Route
+          path="*"
+          element={
+            <main className="empty-state container">
+              <h1>Page Not Found</h1>
+              <p>The page you’re looking for doesn’t exist.</p>
+              <Link to="/" className="btn btn-primary">
+                Back to Home
+              </Link>
+            </main>
+          }
+        />
       </Routes>
-      <footer className="site-footer">© {new Date().getFullYear()} Profile Studio Pro. Built with React and TypeScript.</footer>
+      {showSiteFooter && (
+        <footer className="site-footer">
+          © {new Date().getFullYear()} Profile Studio Pro. Built with React and
+          TypeScript.
+        </footer>
+      )}
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
