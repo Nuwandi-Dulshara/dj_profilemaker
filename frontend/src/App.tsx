@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Builder from "./pages/Builder";
@@ -9,7 +8,6 @@ import Auth from "./pages/Auth";
 export default function App() {
   return (
     <BrowserRouter>
-      <Navbar />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
