@@ -10,12 +10,15 @@ import {
   Globe,
   Layers3,
   ChevronRight,
+  LayoutDashboard,
 } from 'lucide-react';
 
+import { useAuth } from '../context/AuthContext';
 import greatnessImage from '../assets/images/achieving-greatness.png';
 import './Home.css';
 
 export default function Home() {
+  const { isAuthenticated } = useAuth();
   const features = [
     {
       icon: Eye,
@@ -83,13 +86,20 @@ export default function Home() {
           </div>
 
           <div className="ps-nav-actions">
-            <Link to="/login" className="ps-login-btn">
-              Login
-            </Link>
-
-            <Link to="/register" className="ps-register-btn">
-              Register <ArrowRight size={16} />
-            </Link>
+            {isAuthenticated ? (
+              <Link to="/dashboard" className="ps-register-btn">
+                <LayoutDashboard size={16} /> Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link to="/login" className="ps-login-btn">
+                  Login
+                </Link>
+                <Link to="/register" className="ps-register-btn">
+                  Register <ArrowRight size={16} />
+                </Link>
+              </>
+            )}
           </div>
         </nav>
       </header>
@@ -118,8 +128,8 @@ export default function Home() {
               </p>
 
               <div className="ps-hero-buttons">
-                <Link to="/register" className="ps-btn ps-btn-primary">
-                  Get Started Free
+                <Link to={isAuthenticated ? "/dashboard" : "/register"} className="ps-btn ps-btn-primary">
+                  {isAuthenticated ? "Go to Dashboard" : "Get Started Free"}
                   <ArrowRight size={19} />
                 </Link>
 

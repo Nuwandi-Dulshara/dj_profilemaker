@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent, ChangeEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   LockKeyhole,
   UserRound,
@@ -11,6 +11,7 @@ import {
   Layers3,
 } from "lucide-react";
 
+import { useAuth } from "../context/AuthContext";
 import oceanImage from "../assets/images/tropical-ocean.png";
 import "./Auth.css";
 
@@ -29,6 +30,8 @@ interface AuthForm {
 
 export default function Auth({ mode = "login" }: AuthProps) {
   const isRegister = mode === "register";
+  const navigate = useNavigate();
+  const { login, register } = useAuth();
 
   const [form, setForm] = useState<AuthForm>({
     name: "",
@@ -39,6 +42,7 @@ export default function Auth({ mode = "login" }: AuthProps) {
 
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -52,7 +56,7 @@ export default function Auth({ mode = "login" }: AuthProps) {
     setError("");
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setNotice("");
     setError("");
@@ -77,11 +81,23 @@ export default function Auth({ mode = "login" }: AuthProps) {
       return;
     }
 
-    setNotice(
-      isRegister
-        ? "Registration form submitted successfully. Django REST API will be connected later."
-        : "Login form submitted successfully. Django REST API will be connected later."
-    );
+    setIsSubmitting(true);
+    try {
+      if (isRegister) {
+        await register(form.name.trim(), form.email.trim(), form.password);
+        setNotice("Account created successfully! Redirecting...");
+      } else {
+        await login(form.email.trim(), form.password);
+        setNotice("Logged in successfully! Redirecting...");
+      }
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 500);
+    } catch (err: any) {
+      setError(err?.message || "Authentication failed. Please check your credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -255,8 +271,12 @@ export default function Auth({ mode = "login" }: AuthProps) {
                   </p>
                 )}
 
-                <button type="submit" className="green-auth-button">
-                  {isRegister ? "Create Account" : "Login"}
+                <button type="submit" className="green-auth-button" disabled={isSubmitting}>
+                  {isSubmitting
+                    ? "Please wait..."
+                    : isRegister
+                    ? "Create Account"
+                    : "Login"}
                 </button>
 
                 <div className="green-auth-switch">

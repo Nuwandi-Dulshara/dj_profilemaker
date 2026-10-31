@@ -4,6 +4,8 @@ import Builder from "./pages/Builder";
 import Dashboard from "./pages/Dashboard";
 import PublicProfile from "./pages/PublicProfile";
 import Auth from "./pages/Auth";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider } from "./context/AuthContext";
 
 function AppRoutes() {
   const { pathname } = useLocation();
@@ -13,8 +15,22 @@ function AppRoutes() {
     <>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/builder" element={<Builder />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/builder"
+          element={
+            <ProtectedRoute>
+              <Builder />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/p/:slug" element={<PublicProfile />} />
         <Route path="/login" element={<Auth mode="login" />} />
         <Route path="/register" element={<Auth mode="register" />} />
@@ -44,7 +60,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
