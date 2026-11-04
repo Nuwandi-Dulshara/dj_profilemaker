@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, Eye, LayoutTemplate, ArrowLeft } from 'lucide-react';
+import { Save, Eye, LayoutTemplate, ArrowLeft, Moon, Sun } from 'lucide-react';
+import toast from 'react-hot-toast';
+
 import ProfileForm from '../components/ProfileForm';
 import ProfilePreview from '../components/ProfilePreview';
 import { emptyProfile, templates } from '../data/templates';
 import type { Profile } from '../data/templates';
 import { profilesApi } from '../api/profiles';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Builder() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editingId = searchParams.get('id');
+  const { theme, toggleTheme } = useTheme();
 
   const [profile, setProfile] = useState<Profile>(() => ({ ...emptyProfile }));
-  const [message, setMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -25,29 +27,26 @@ export default function Builder() {
         return;
       }
       setIsLoading(true);
-      setErrorMessage('');
       try {
         const data = await profilesApi.getProfile(editingId);
         setProfile(data);
       } catch (err: any) {
-        setErrorMessage(err?.message || 'Unable to load profile.');
+        toast.error(err?.message || 'Unable to load profile.');
       } finally {
         setIsLoading(false);
       }
     }
     fetchProfile();
-    setMessage('');
   }, [editingId]);
 
   const saveProfile = async () => {
     if (!profile.name.trim()) {
-      alert('Please enter your name.');
+      toast.error('Please enter your full name.');
       return;
     }
 
     setIsSaving(true);
-    setMessage('');
-    setErrorMessage('');
+    const toastId = toast.loading('Saving profile to database...');
 
     try {
       let saved: Profile;
@@ -57,12 +56,14 @@ export default function Builder() {
         saved = await profilesApi.createProfile(profile);
       }
       setProfile(saved);
-      setMessage('Profile saved successfully to database!');
+      toast.success('Profile saved successfully!', { id: toastId });
       if (!profile.id && saved.id) {
         navigate(`/builder?id=${saved.id}`, { replace: true });
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to save profile. Please check all fields.');
+      toast.error(err?.message || 'Failed to save profile. Please check all fields.', {
+        id: toastId,
+      });
     } finally {
       setIsSaving(false);
     }
@@ -70,7 +71,7 @@ export default function Builder() {
 
   const viewPublicProfile = () => {
     if (!profile.id || !profile.slug) {
-      alert('Save your profile first to view its public page.');
+      toast.error('Save your profile first to view its public page.');
       return;
     }
     window.open(`/p/${profile.slug}`, '_blank', 'noopener,noreferrer');
@@ -86,6 +87,7 @@ export default function Builder() {
 
   return (
     <div className="builder-page container">
+      {/* HEADER */}
       <div className="page-heading">
         <div>
           <button
@@ -97,12 +99,20 @@ export default function Builder() {
             <ArrowLeft size={14} /> Back to Dashboard
           </button>
           <span className="eyebrow" style={{ display: 'block' }}>
-            PROFILE EDITOR
+            PROFILE STUDIO BUILDER
           </span>
           <h1>Create Your Digital Profile</h1>
-          <p>Design your profile and watch it come to life.</p>
+          <p>Design your custom portfolio with real-time preview and instant PDF & QR generation.</p>
         </div>
-        <div className="page-actions">
+        <div className="page-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           <button type="button" className="btn btn-outline" onClick={viewPublicProfile}>
             <Eye size={17} /> View Profile
           </button>
@@ -112,28 +122,26 @@ export default function Builder() {
         </div>
       </div>
 
-      {message && (
-        <div role="status" className="success-message">
-          {message}
-        </div>
-      )}
-
-      {errorMessage && (
-        <div style={{ padding: '12px 18px', background: '#ffeef0', color: '#dc3545', borderRadius: '10px', marginBottom: '20px', fontSize: '13px' }}>
-          {errorMessage}
-        </div>
-      )}
-
       <div className="builder-layout">
+        {/* LEFT PANEL: PROFILE EDITOR */}
         <div className="editor-panel">
           <ProfileForm profile={profile} setProfile={setProfile} />
         </div>
+
+        {/* RIGHT PANEL: TEMPLATE SELECTOR & LIVE PREVIEW */}
         <div className="preview-panel">
           <div className="template-panel">
             <h2>
-              <LayoutTemplate size={19} /> Choose Template
+              <LayoutTemplate size={19} /> Choose Template ({templates.length} Available)
             </h2>
-            <div className="template-options">
+            <div
+              className="template-options"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                gap: '8px',
+              }}
+            >
               {templates.map((template) => (
                 <button
                   type="button"
@@ -141,19 +149,25 @@ export default function Builder() {
                   className={`template-option ${profile.template_id === template.id ? 'selected' : ''}`}
                   onClick={() => setProfile((prev) => ({ ...prev, template_id: template.id }))}
                   title={template.description}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '10px' }}
                 >
                   <span className={`template-swatch swatch-${template.id}`} />
-                  {template.name}
+                  <span style={{ fontWeight: 600, fontSize: '13px' }}>{template.name}</span>
+                  <span style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                    {template.badge}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
+
           <div className="preview-label">
-            <span>LIVE PREVIEW</span>
+            <span>LIVE INTERACTIVE PREVIEW</span>
             <span className="live-indicator">
-              <span /> Live
+              <span /> Real-Time
             </span>
           </div>
+
           <ProfilePreview profile={profile} />
         </div>
       </div>

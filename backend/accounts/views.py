@@ -1,3 +1,6 @@
+from django.contrib.auth.models import User
+from django.contrib.auth.hashers import check_password
+from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -60,7 +63,6 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Delete auth token to log out
         try:
             request.user.auth_token.delete()
         except Exception:
@@ -86,3 +88,111 @@ class MeView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class SettingsUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        user = request.user
+        name = request.data.get("name")
+        email = request.data.get("email")
+        current_password = request.data.get("current_password")
+        new_password = request.data.get("new_password")
+
+        if name:
+            user.first_name = name
+        if email:
+            if User.objects.filter(email=email).exclude(pk=user.pk).exists():
+                return Response(
+                    {"status": "error", "message": "Email address is already in use by another account."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.email = email
+            user.username = email
+
+        if new_password:
+            if not current_password or not check_password(current_password, user.password):
+                return Response(
+                    {"status": "error", "message": "Current password does not match."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if len(new_password) < 8:
+                return Response(
+                    {"status": "error", "message": "New password must be at least 8 characters."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.set_password(new_password)
+
+        user.save()
+        return Response({
+            "status": "success",
+            "message": "Account settings updated successfully.",
+            "user": UserSerializer(user).data,
+        })
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email", "").strip()
+        if not email:
+            return Response(
+                {"status": "error", "message": "Please provide an email address."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user = User.objects.filter(email=email).first()
+        if user:
+            send_mail(
+                subject="Reset Your Profile Studio Pro Password",
+                message=f"Hello {user.first_name or user.username},\n\nPlease follow this link to reset your password:\nhttp://localhost:5173/reset-password",
+                from_email="noreply@profilestudio.local",
+                recipient_list=[email],
+                fail_silently=True,
+            )
+        # Return success regardless for security / email enumeration prevention
+        return Response({
+            "status": "success",
+            "message": "If an account exists with this email, a reset link has been dispatched.",
+        })
+
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        new_password = request.data.get("password")
+        if not new_password or len(new_password) < 8:
+            return Response(
+                {"status": "error", "message": "Password must be at least 8 characters long."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if email:
+            user = User.objects.filter(email=email).first()
+            if user:
+                user.set_password(new_password)
+                user.save()
+        return Response({
+            "status": "success",
+            "message": "Password has been successfully updated. You may now log in.",
+        })
+
+
+class ResendVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        send_mail(
+            subject="Verify your Profile Studio Pro Account",
+            message=f"Hello {user.first_name},\n\nPlease verify your email by clicking the confirmation link.",
+            from_email="noreply@profilestudio.local",
+            recipient_list=[user.email],
+            fail_silently=True,
+        )
+        return Response({
+            "status": "success",
+            "message": f"Verification email dispatched to {user.email}.",
+        })

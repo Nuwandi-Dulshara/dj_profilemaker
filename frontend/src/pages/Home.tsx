@@ -11,14 +11,18 @@ import {
   Layers3,
   ChevronRight,
   LayoutDashboard,
+  Moon,
+  Sun,
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import greatnessImage from '../assets/images/achieving-greatness.png';
 import './Home.css';
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const features = [
     {
       icon: Eye,
@@ -83,9 +87,21 @@ export default function Home() {
             <a href="#top">Home</a>
             <a href="#features">Features</a>
             <a href="#how-it-works">How It Works</a>
+            <a href="http://127.0.0.1:8000/api/docs/" target="_blank" rel="noopener noreferrer">
+              API Docs
+            </a>
           </div>
 
-          <div className="ps-nav-actions">
+          <div className="ps-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={toggleTheme}
+              style={{ padding: '8px 12px', borderRadius: '10px' }}
+              title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             {isAuthenticated ? (
               <Link to="/dashboard" className="ps-register-btn">
                 <LayoutDashboard size={16} /> Dashboard

@@ -253,9 +253,9 @@ export default function Auth({ mode = "login" }: AuthProps) {
 
                 {!isRegister && (
                   <div className="green-auth-links-row">
-                    <a href="/" onClick={(e) => e.preventDefault()}>
+                    <Link to="/forgot-password">
                       Forgot Password?
-                    </a>
+                    </Link>
                   </div>
                 )}
 
