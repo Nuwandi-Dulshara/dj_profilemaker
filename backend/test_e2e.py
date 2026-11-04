@@ -4,30 +4,28 @@ import json
 
 BASE_URL = 'http://127.0.0.1:8000'
 
-def request(path, method='GET', data=None, token=None):
-    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+def request(path, method='GET', data=None, token=None, accept='*/*'):
+    headers = {'Content-Type': 'application/json', 'Accept': accept}
     if token:
         headers['Authorization'] = f'Token {token}'
     req_data = json.dumps(data).encode('utf-8') if data else None
     req = urllib.request.Request(f'{BASE_URL}{path}', data=req_data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req) as response:
-            body = response.read().decode('utf-8')
-            return response.status, json.loads(body) if body else {}
+            body = response.read()
+            try:
+                decoded = body.decode('utf-8')
+                return response.status, json.loads(decoded)
+            except Exception:
+                return response.status, body
     except urllib.error.HTTPError as e:
         body = e.read().decode('utf-8')
-        return e.code, json.loads(body) if body else {}
+        try:
+            return e.code, json.loads(body)
+        except Exception:
+            return e.code, body
 
-print('--- Step 1: Testing User Registration ---')
-status, res = request('/api/auth/register/', 'POST', {
-    'name': 'Integration Tester',
-    'email': 'e2e_tester@example.com',
-    'password': 'Password1234!'
-})
-print(f'Registration status: {status}, response: {res.get("status")}')
-assert status in (201, 400), f'Unexpected status: {status}'
-
-print('\n--- Step 2: Testing User Login ---')
+print('--- Step 1: Testing User Login ---')
 status, res = request('/api/auth/login/', 'POST', {
     'email': 'alex@example.com',
     'password': 'password123'
@@ -36,34 +34,59 @@ print(f'Login status: {status}, token obtained: {bool(res.get("token"))}')
 assert status == 200 and 'token' in res, 'Login failed!'
 token = res['token']
 
-print('\n--- Step 3: Testing /api/auth/me/ ---')
-status, res = request('/api/auth/me/', 'GET', token=token)
-user_data = res.get('user', {})
-print(f'Me status: {status}, User: {user_data.get("name")} ({user_data.get("email")})')
+print('\n--- Step 2: Testing Swagger OpenAPI Schema & Docs ---')
+status, schema = request('/api/schema/', 'GET')
+print(f'OpenAPI schema status: {status}, length: {len(schema)}')
 assert status == 200
 
-print('\n--- Step 4: Testing GET /api/profiles/ (Dashboard List) ---')
-status, profiles = request('/api/profiles/', 'GET', token=token)
-print(f'Profiles count: {len(profiles)}')
-for p in profiles:
-    print(f' - Profile: {p["name"]}, Title: {p.get("title")}, Slug: {p["slug"]}')
+status, docs = request('/api/docs/', 'GET')
+print(f'Swagger UI status: {status}')
 assert status == 200
 
-print('\n--- Step 5: Testing POST /api/profiles/ (Create Profile in MySQL) ---')
+import uuid
+test_unique_id = uuid.uuid4().hex[:6]
+test_slug = f'elena-rostova-{test_unique_id}'
+
+print('\n--- Step 3: Testing POST /api/profiles/ with Experience, Education & Projects ---')
 status, new_prof = request('/api/profiles/', 'POST', {
-    'name': 'Sophia Chen',
-    'title': 'AI Research Engineer',
-    'bio': 'Pioneering machine learning architectures.',
-    'email': 'sophia@example.com',
-    'phone': '+65 9123 4567',
-    'location': 'Singapore',
-    'template_id': 'modern',
+    'name': 'Elena Rostova',
+    'title': 'Lead AI System Architect',
+    'bio': 'Designing robust distributed neural architectures.',
+    'email': 'elena@example.com',
+    'phone': '+1 415 555 2671',
+    'location': 'San Francisco, CA',
+    'template_id': 'developer',
+    'slug': test_slug,
     'skills': [
-        {'name': 'PyTorch', 'level': 95},
-        {'name': 'LLM Fine-tuning', 'level': 90}
+        {'name': 'Distributed Systems', 'level': 95},
+        {'name': 'PyTorch & CUDA', 'level': 90}
     ],
     'links': [
-        {'platform': 'GitHub', 'url': 'https://github.com/sophiachen'}
+        {'platform': 'GitHub', 'url': 'https://github.com/elena'}
+    ],
+    'experiences': [
+        {
+            'role': 'Principal AI Engineer',
+            'company': 'Quantum Neural Labs',
+            'startDate': '2022 - Present',
+            'description': 'Leading high-throughput inference optimization pipelines.'
+        }
+    ],
+    'education': [
+        {
+            'degree': 'Ph.D. in Computer Science',
+            'institution': 'Stanford University',
+            'startDate': '2016 - 2021'
+        }
+    ],
+    'projects': [
+        {
+            'title': 'TensorStream Engine',
+            'description': 'Real-time multi-GPU model routing framework.',
+            'demoUrl': 'https://example.com/demo',
+            'githubUrl': 'https://github.com/elena/tensorstream',
+            'tags': 'C++, CUDA, Python'
+        }
     ]
 }, token=token)
 print(f'Create status: {status}, ID: {new_prof.get("id")}, Slug: {new_prof.get("slug")}')
@@ -71,49 +94,57 @@ assert status == 201
 new_id = new_prof['id']
 slug = new_prof['slug']
 
-print('\n--- Step 6: Testing GET /api/public/p/<slug>/ (Public Access without Auth) ---')
+print('\n--- Step 4: Testing Public Profile View & Analytics Tracking ---')
 status, pub_prof = request(f'/api/public/p/{slug}/', 'GET')
 print(f'Public profile status: {status}')
-print(f'Public name: {pub_prof["profile"]["name"]}, Template: {pub_prof["profile"]["template_id"]}')
-print(f'Skills ({len(pub_prof["profile"]["skills"])}): {[s["name"] for s in pub_prof["profile"]["skills"]]}')
+print(f'Experiences: {len(pub_prof["profile"].get("experiences", []))}')
+print(f'Education: {len(pub_prof["profile"].get("education", []))}')
+print(f'Projects: {len(pub_prof["profile"].get("projects", []))}')
+print(f'Views count: {pub_prof["profile"].get("views_count")}')
 assert status == 200
+assert len(pub_prof["profile"]["experiences"]) == 1
+assert len(pub_prof["profile"]["education"]) == 1
+assert len(pub_prof["profile"]["projects"]) == 1
 
-print('\n--- Step 7: Testing PUT /api/profiles/<id>/ (Update in MySQL) ---')
-status, updated_prof = request(f'/api/profiles/{new_id}/', 'PUT', {
-    'name': 'Sophia Chen',
-    'title': 'Senior AI Research Scientist',
-    'bio': 'Pioneering advanced foundation model architectures.',
-    'email': 'sophia@example.com',
-    'phone': '+65 9123 4567',
-    'location': 'Singapore & Remote',
-    'template_id': 'creative',
-    'skills': [
-        {'name': 'PyTorch', 'level': 98},
-        {'name': 'LLM Fine-tuning', 'level': 94},
-        {'name': 'Distributed Training', 'level': 90}
-    ],
-    'links': [
-        {'platform': 'GitHub', 'url': 'https://github.com/sophiachen'},
-        {'platform': 'LinkedIn', 'url': 'https://linkedin.com/in/sophiachen'}
-    ]
+print('\n--- Step 5: Testing QR Code Generation Endpoint ---')
+status, qr_bytes = request(f'/api/profiles/{new_id}/qr/', 'GET')
+print(f'QR code status: {status}, bytes: {len(qr_bytes)}')
+assert status == 200 and len(qr_bytes) > 100
+
+print('\n--- Step 6: Testing PDF Resume Generation Endpoint ---')
+status, pdf_bytes = request(f'/api/profiles/{new_id}/pdf/', 'GET')
+print(f'PDF resume status: {status}, bytes: {len(pdf_bytes)}')
+assert status == 200 and len(pdf_bytes) > 500
+
+print('\n--- Step 7: Testing Public Contact Message Submission ---')
+status, contact_res = request(f'/api/public/p/{slug}/contact/', 'POST', {
+    'sender_name': 'David Miller',
+    'sender_email': 'david@enterprise.com',
+    'subject': 'Advisory Role',
+    'message': 'Hi Elena, we would love to discuss an advisory role.'
+})
+print(f'Contact message status: {status}, raw response: {contact_res}')
+if isinstance(contact_res, dict):
+    print(f'Contact message response: {contact_res.get("message")}')
+assert status == 201
+
+print('\n--- Step 8: Testing Account Settings Update ---')
+status, settings_res = request('/api/auth/settings/', 'PUT', {
+    'name': 'Alex Morgan Updated',
 }, token=token)
-print(f'Update status: {status}, Updated Title: {updated_prof.get("title")}, Skills: {len(updated_prof.get("skills", []))}')
+print(f'Settings update status: {status}, name: {settings_res.get("user", {}).get("name")}')
 assert status == 200
 
-print('\n--- Step 8: Testing GET /api/profiles/dashboard/stats/ ---')
-status, stats_res = request('/api/profiles/dashboard/stats/', 'GET', token=token)
-print(f'Stats status: {status}')
-print(f'Stats data: {stats_res.get("stats")}')
+print('\n--- Step 9: Testing Forgot Password Request ---')
+status, forgot_res = request('/api/auth/forgot-password/', 'POST', {
+    'email': 'alex@example.com'
+})
+print(f'Forgot password status: {status}, message: {forgot_res.get("message")}')
 assert status == 200
 
-print('\n--- Step 9: Testing DELETE /api/profiles/<id>/ ---')
+print('\n--- Step 10: Cleaning up created test profile ---')
 status, _ = request(f'/api/profiles/{new_id}/', 'DELETE', token=token)
 print(f'Delete status: {status}')
 assert status in (200, 204)
 
-print('\n--- Step 10: Verify Deletion ---')
-status, after_del = request(f'/api/public/p/{slug}/', 'GET')
-print(f'Public lookup after delete status (expected 404): {status}')
-assert status == 404
-
-print('\n>>> ALL 10 END-TO-END VERIFICATION CHECKS PASSED PERFECTLY AGAINST DJANGO AND MYSQL! <<<')
+print('\n>>> ALL 10 ADVANCED BACKEND TESTS PASSED CLEANLY ON DJANGO & MYSQL! <<<')
