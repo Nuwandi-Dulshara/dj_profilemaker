@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 
 import Home from './pages/Home';
 import Builder from './pages/Builder';
+import CvBuilder from './pages/CvBuilder';
 import Dashboard from './pages/Dashboard';
 import PublicProfile from './pages/PublicProfile';
 import Auth from './pages/Auth';
@@ -36,6 +37,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Builder />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cv-builder"
+          element={
+            <ProtectedRoute>
+              <CvBuilder />
             </ProtectedRoute>
           }
         />

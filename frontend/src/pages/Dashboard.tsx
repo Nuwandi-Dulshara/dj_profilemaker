@@ -127,6 +127,9 @@ export default function Dashboard() {
           <Link className="btn btn-outline" to="/settings" title="Account Settings">
             <SettingsIcon size={16} /> Settings
           </Link>
+          <Link className="btn btn-outline" to="/cv-builder">
+            <Plus size={17} /> Create CV
+          </Link>
           <Link className="btn btn-primary" to="/builder">
             <Plus size={17} /> New Profile
           </Link>

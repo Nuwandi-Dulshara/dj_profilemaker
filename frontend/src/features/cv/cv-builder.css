@@ -1,0 +1,32 @@
+.cv-builder { padding-top: 28px; padding-bottom: 40px; }
+.cv-builder .cv-heading { margin-top: 24px; }
+.cv-builder .cv-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.cv-builder .cv-notice { padding: 18px 20px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; }
+.cv-builder .cv-notice p { margin: 8px 0 0; font-size: 13px; line-height: 1.6; }
+.cv-builder .cv-status { margin: 18px 0; font-size: 14px; }
+.cv-builder .cv-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 22px; align-items: start; }
+.cv-builder .cv-panel { min-width: 0; padding: 22px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }
+.cv-builder h2 { display: flex; gap: 8px; align-items: center; font-size: 18px; }
+.cv-builder h3 { font-size: 15px; }
+.cv-builder .cv-editor label { display: block; margin: 18px 0 8px; font-size: 13px; font-weight: 700; }
+.cv-builder .cv-editor input, .cv-builder .cv-editor textarea { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #17233b; }
+.cv-builder .cv-editor textarea { min-height: 260px; resize: vertical; font: 13px/1.6 Consolas, monospace; tab-size: 2; }
+.cv-builder .cv-help, .cv-builder .cv-clouds p { color: #5c687d; font-size: 13px; line-height: 1.6; margin: 12px 0; }
+.cv-builder iframe { width: 100%; height: 820px; display: block; border: 1px solid #e2e8f0; border-radius: 6px; background: #e8edf5; }
+.cv-builder .cv-saved { grid-template-columns: minmax(0, 1fr); }
+.cv-builder .cv-exports { margin-top: 22px; }
+.cv-builder .cv-clouds { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; border-top: 1px solid #e2e8f0; margin-top: 20px; padding-top: 20px; }
+.cv-builder .cv-error { color: #b91c1c; line-height: 1.6; }
+.cv-builder button:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.cv-builder :is(button, input, textarea, a):focus-visible { outline: 3px solid #315cec; outline-offset: 3px; }
+[data-theme="dark"] .cv-builder .cv-panel { background: #111827; border-color: #374151; }
+[data-theme="dark"] .cv-builder .cv-notice { background: #17233b; border-color: #315cec; }
+[data-theme="dark"] .cv-builder .cv-help, [data-theme="dark"] .cv-builder .cv-clouds p { color: #cbd5e1; }
+[data-theme="dark"] .cv-builder .cv-editor input, [data-theme="dark"] .cv-builder .cv-editor textarea { background: #1f2937; border-color: #374151; color: #f9fafb; }
+[data-theme="dark"] .cv-builder .cv-error { color: #fca5a5; }
+@media (max-width: 900px) {
+  .cv-builder .cv-workspace, .cv-builder .cv-clouds { grid-template-columns: minmax(0, 1fr); }
+  .cv-builder .cv-panel { padding: 16px; }
+  .cv-builder iframe { height: 650px; }
+  .cv-builder .cv-heading { align-items: flex-start; }
+}
