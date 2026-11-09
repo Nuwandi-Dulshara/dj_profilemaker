@@ -34,14 +34,11 @@ print(f'Login status: {status}, token obtained: {bool(res.get("token"))}')
 assert status == 200 and 'token' in res, 'Login failed!'
 token = res['token']
 
-print('\n--- Step 2: Testing Swagger OpenAPI Schema & Docs ---')
-status, schema = request('/api/schema/', 'GET')
-print(f'OpenAPI schema status: {status}, length: {len(schema)}')
-assert status == 200
-
-status, docs = request('/api/docs/', 'GET')
-print(f'Swagger UI status: {status}')
-assert status == 200
+print('\n--- Step 2: Confirming API documentation is removed ---')
+for path in ('/api/docs/', '/api/schema/', '/api/redoc/'):
+    status, _ = request(path, 'GET')
+    print(f'{path} status: {status}')
+    assert status == 404
 
 import uuid
 test_unique_id = uuid.uuid4().hex[:6]
