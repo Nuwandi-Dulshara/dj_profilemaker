@@ -87,9 +87,6 @@ export default function Home() {
             <a href="#top">Home</a>
             <a href="#features">Features</a>
             <a href="#how-it-works">How It Works</a>
-            <a href="http://127.0.0.1:8000/api/docs/" target="_blank" rel="noopener noreferrer">
-              API Docs
-            </a>
           </div>
 
           <div className="ps-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

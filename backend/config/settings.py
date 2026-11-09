@@ -45,7 +45,6 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
-    "drf_spectacular",
 
     # Project applications
     "accounts",
@@ -165,14 +164,6 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-}
-
-SPECTACULAR_SETTINGS = {
-    "TITLE": "Profile Studio Pro API",
-    "DESCRIPTION": "Complete REST API for digital profile building, templates, analytics, and sharing.",
-    "VERSION": "1.0.0",
-    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

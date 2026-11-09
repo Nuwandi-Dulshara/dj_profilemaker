@@ -6,7 +6,6 @@ import {
   Lock,
   Moon,
   Sun,
-  FileCode,
   ArrowLeft,
   CheckCircle,
   AlertCircle,
@@ -243,28 +242,7 @@ export default function Settings() {
           </form>
         </div>
 
-        {/* SWAGGER API DOCS ACCESS (#32) */}
-        <div className="settings-card" style={{ padding: '24px', background: '#fff', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-            <div>
-              <h2 style={{ fontSize: '18px', marginBottom: '6px' }}>
-                <FileCode size={18} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                Developer API & Swagger Docs
-              </h2>
-              <p style={{ color: '#64748b', fontSize: '13px' }}>
-                Access interactive API documentation, endpoints schema, and REST specifications.
-              </p>
-            </div>
-            <a
-              href="http://127.0.0.1:8000/api/docs/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-outline"
-            >
-              Open Swagger UI
-            </a>
-          </div>
-        </div>
+
       </div>
     </div>
   );
