@@ -1,0 +1,4 @@
+# Install into the existing backend environment; no framework replacement.
+cryptography>=44,<47
+html5lib==1.1
+playwright>=1.51,<2

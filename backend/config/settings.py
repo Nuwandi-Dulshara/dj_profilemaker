@@ -23,12 +23,12 @@ load_dotenv(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-4u8ff0f+^bm^wwr8wdo#cs$l^7j%0dd(9rqym3z+nh1pp#q__@'
+SECRET_KEY = os.environ['SECRET_KEY']
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     # Project applications
     "accounts",
     "profiles",
+    "cvbuilder",
 ]
 
 MIDDLEWARE = [
@@ -167,4 +168,25 @@ REST_FRAMEWORK = {
 }
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
+
+# Browser authentication and CV cloud connections use existing database sessions.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+CSRF_TRUSTED_ORIGINS = list(set(CORS_ALLOWED_ORIGINS + [FRONTEND_URL]))
+CORS_ALLOWED_ORIGINS = list(set(CORS_ALLOWED_ORIGINS + [FRONTEND_URL]))
+CORS_ALLOW_ALL_ORIGINS = False
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+CV_TOKEN_ENCRYPTION_KEY = os.getenv("CV_TOKEN_ENCRYPTION_KEY", "")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/cv/oauth/google/callback/")
+MICROSOFT_CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID", "")
+MICROSOFT_CLIENT_SECRET = os.getenv("MICROSOFT_CLIENT_SECRET", "")
+MICROSOFT_TENANT = os.getenv("MICROSOFT_TENANT", "common")
+MICROSOFT_REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI", "http://localhost:8000/api/cv/oauth/microsoft/callback/")
+CV_PDF_TIMEOUT_SECONDS = int(os.getenv("CV_PDF_TIMEOUT_SECONDS", "45"))
+CV_PDF_CONCURRENCY = int(os.getenv("CV_PDF_CONCURRENCY", "2"))
+

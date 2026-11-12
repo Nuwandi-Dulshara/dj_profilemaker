@@ -1,4 +1,6 @@
 import type { CvSource } from './integrations';
+import bootstrapCss from '../../../../backend/cvbuilder/static/cvbuilder/bootstrap.min.css?raw';
+import pageCss from '../../../../backend/cvbuilder/static/cvbuilder/page.css?raw';
 
 // Preserve document structure and styles, but no scripts, navigation or embedding.
 const tags = new Set(('html head body title style a abbr address article aside b blockquote br caption code col colgroup dd div dl dt em ' +
@@ -23,6 +25,9 @@ export function buildPreview(source: Readonly<CvSource>): string {
     }
   }
   if (!preview.documentElement.lang) preview.documentElement.lang = 'en';
+  if (!/<!doctype\s+html\b|<(?:html|head|body)(?:\s|>)/i.test(source.html)) {
+    preview.body.setAttribute('data-cv-fragment', 'true');
+  }
 
   const policy = preview.createElement('meta');
   policy.httpEquiv = 'Content-Security-Policy';
@@ -33,16 +38,7 @@ export function buildPreview(source: Readonly<CvSource>): string {
   viewport.name = 'viewport';
   viewport.content = 'width=device-width, initial-scale=1';
   const defaults = preview.createElement('style');
-  defaults.textContent = `
-* { box-sizing: border-box; }
-html { background: #e8edf5; }
-body { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 18mm; background: white; color: #17233b; font: 11pt/1.5 Arial, sans-serif; overflow-wrap: anywhere; }
-img { max-width: 100%; }
-h1, h2, h3 { break-after: avoid; }
-section, tr { break-inside: avoid; }
-@page { size: A4; margin: 0; }
-@media print { html { background: white; } body { margin: 0; } }
-`;
+  defaults.textContent = (bootstrapCss + '\n' + pageCss).replace(/</g, '\\3c ');
   // Defaults precede authored CSS, so internal styles keep their normal cascade.
   preview.head.prepend(policy, charset, viewport, defaults);
   // Retain compatibility with previously saved two-field sources. New editing
@@ -50,5 +46,8 @@ section, tr { break-inside: avoid; }
   const legacyCss = preview.createElement('style');
   legacyCss.textContent = source.css.replace(/</g, '\\3c ');
   preview.head.append(legacyCss);
+  const paper = preview.createElement('style');
+  paper.textContent = '@page { size: A4 !important; }';
+  preview.body.append(paper);
   return `<!doctype html>${preview.documentElement.outerHTML}`;
 }

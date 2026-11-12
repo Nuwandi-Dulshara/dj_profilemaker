@@ -23,6 +23,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api_home, name="api-home"),
     path("api/auth/", include("accounts.urls")),
+    path("api/cv/", include("cvbuilder.urls")),
     path("api/profiles/", include("profiles.urls")),
     path("api/public/p/<slug:slug>/", PublicProfileView.as_view(), name="public-profile-direct"),
     path("api/public/p/<slug:slug>/contact/", ContactMessageCreateView.as_view(), name="public-profile-contact-direct"),
