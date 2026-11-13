@@ -7,25 +7,26 @@ export interface CvSource {
 export interface FileConfirmation { fileId: string }
 export interface SavedCv extends FileConfirmation {
   source: Readonly<CvSource>;
+  confirmation: string;
+  revision: string;
+  previewHtml: string;
 }
 export interface CvPdfCache { saved: SavedCv; blob: Blob }
 export function cachedPdf(saved: SavedCv, cache: CvPdfCache | null): Blob | null {
   return cache?.saved === saved ? cache.blob : null;
 }
-export type PdfExporter = (pdf: Blob, filename: string) => Promise<FileConfirmation>;
+export type PdfExporter = (saved: SavedCv) => Promise<FileConfirmation>;
 export interface CvIntegrations {
   drive?: {
     /** Resolve only after Drive confirms a durable write. Reject on auth/save errors. */
-    saveSource: (source: Readonly<CvSource>, fileId?: string) => Promise<FileConfirmation>;
+    saveSource: (source: Readonly<CvSource>, previous?: SavedCv) => Promise<FileConfirmation>;
+    loadSource: (fileId: string) => Promise<SavedCv>;
     exportPdf?: PdfExporter;
   };
   oneDrive?: { exportPdf: PdfExporter };
   /** Render in isolation; never insert source HTML into the application's DOM. */
-  renderPdf?: (source: Readonly<CvSource>) => Promise<Blob>;
+  renderPdf?: (saved: SavedCv) => Promise<Blob>;
 }
-
-// No cloud provider is connected in this repository. No simulated responses.
-export const cvIntegrations: CvIntegrations = {};
 
 export function sameSource(a: Readonly<CvSource>, b: Readonly<CvSource>): boolean {
   return a.title === b.title && a.html === b.html && a.css === b.css;
@@ -37,24 +38,29 @@ function confirmed(result: FileConfirmation): FileConfirmation {
   return result;
 }
 export async function saveCv(
-  integrations: CvIntegrations, source: CvSource, fileId?: string,
+  integrations: CvIntegrations, source: CvSource, previous?: SavedCv,
 ): Promise<SavedCv> {
   if (!integrations.drive) throw new Error('Google Drive connection and save integration are required.');
   const snapshot = Object.freeze({ ...source });
-  const result = confirmed(await integrations.drive.saveSource(snapshot, fileId));
-  return Object.freeze({ fileId: result.fileId, source: snapshot });
+  const result = confirmed(await integrations.drive.saveSource(snapshot, previous));
+  const retrieved = await integrations.drive.loadSource(result.fileId);
+  if (retrieved.fileId !== result.fileId || !retrieved.confirmation || !retrieved.revision || !retrieved.previewHtml) {
+    throw new Error('Drive retrieval did not confirm a saved version. Reopen the CV and retry.');
+  }
+  if (!sameSource(snapshot, retrieved.source)) throw new Error('The retrieved Drive version is different. Reopen the CV before retrying.');
+  return Object.freeze({ ...retrieved, source: Object.freeze({ ...retrieved.source }) });
 }
 export async function createPdf(integrations: CvIntegrations, saved: SavedCv): Promise<Blob> {
   if (!integrations.renderPdf) throw new Error('An isolated CV PDF rendering integration is required.');
-  const pdf = await integrations.renderPdf(saved.source);
+  const pdf = await integrations.renderPdf(saved);
   if (!(pdf instanceof Blob) || pdf.type !== 'application/pdf' || !pdf.size) {
     throw new Error('The renderer did not return a valid PDF. Please retry.');
   }
   return pdf;
 }
-export async function exportPdf(exporter: PdfExporter | undefined, pdf: Blob, filename: string) {
+export async function exportPdf(exporter: PdfExporter | undefined, saved: SavedCv) {
   if (!exporter) throw new Error('Cloud connection and PDF export integration are required.');
-  return confirmed(await exporter(pdf, filename));
+  return confirmed(await exporter(saved));
 }
 export function downloadPdf(pdf: Blob, filename: string) {
   const url = URL.createObjectURL(pdf);

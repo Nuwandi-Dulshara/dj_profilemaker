@@ -6,6 +6,44 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .serializers import RegisterSerializer, LoginSerializer, UserSerializer
+from django.contrib.auth import login as session_login, logout as session_logout, update_session_auth_hash
+from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
+
+
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class CsrfView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        response = Response({"csrfToken": get_token(request)})
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class BrowserLoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = LoginSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if self.serializer_class is RegisterSerializer:
+            user, _ = serializer.save()
+        else:
+            user = serializer.validated_data["user"]
+        session_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        response = Response({"status": "success", "user": UserSerializer(user).data})
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class BrowserRegisterView(BrowserLoginView):
+    serializer_class = RegisterSerializer
 
 
 class RegisterView(APIView):
@@ -67,6 +105,7 @@ class LogoutView(APIView):
             request.user.auth_token.delete()
         except Exception:
             pass
+        session_logout(request)
         return Response(
             {
                 "status": "success",
@@ -125,6 +164,8 @@ class SettingsUpdateView(APIView):
             user.set_password(new_password)
 
         user.save()
+        if new_password:
+            update_session_auth_hash(request, user)
         return Response({
             "status": "success",
             "message": "Account settings updated successfully.",
