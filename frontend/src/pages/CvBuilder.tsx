@@ -1,5 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, CloudUpload, Code, Download, Eye, Save, Share2 } from 'lucide-react';
 import { buildPreview } from '../features/cv/preview';
 import {
@@ -9,13 +9,23 @@ import { cvApi, cvIntegrations, connectProvider } from '../features/cv/api';
 import type { Connections, DriveFile, Provider } from '../features/cv/api';
 import type { CvIntegrations, CvPdfCache, CvSource, SavedCv } from '../features/cv/integrations';
 import '../features/cv/cv-builder.css';
+import SourceEditor from '../features/cv/SourceEditor';
+import PhotoEditor from '../features/cv/PhotoEditor';
+import EnhancementPanel from '../features/cv/EnhancementPanel';
+import { enhancements } from '../features/cv/enhancementsApi';
+import type { Asset } from '../features/cv/enhancementsApi';
+import { downloadSource, validateSource } from '../features/cv/editing';
 
 const emptySource: CvSource = { title: 'Untitled CV', html: '', css: '' };
 const leaveMessage = 'Your CV has unsaved changes. Leave and discard them?';
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Unable to complete this action. Please retry.';
 
 export default function CvBuilder({ integrations = cvIntegrations }: { integrations?: CvIntegrations }) {
-  const [source, setSource] = useState<CvSource>({ ...emptySource });
+  const location = useLocation();
+  const [source, setSource] = useState<CvSource>(() => location.state?.cvSource ?? { ...emptySource });
+  const [asset, setAsset] = useState<Asset | null>(null);
+  const [documentEpoch, setDocumentEpoch] = useState(0);
+  const [reveal, setReveal] = useState<{text:string; sequence:number}>({text:'',sequence:0});
   const [saved, setSaved] = useState<SavedCv | null>(null);
   const [view, setView] = useState<'editor' | 'saved'>('editor');
   const [saving, setSaving] = useState(false);
@@ -23,7 +33,9 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
   const [actionError, setActionError] = useState('');
   const [connectionError, setConnectionError] = useState('');
   const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [actionBusy, setBusy] = useState(false);
+  const [enhancementBusy, setEnhancementBusy] = useState(false);
+  const busy = actionBusy || enhancementBusy;
   const [pdf, setPdf] = useState<CvPdfCache | null>(null);
   const [shareReady, setShareReady] = useState<{ saved: SavedCv; expires: number } | null>(null);
   const [connections, setConnections] = useState<Connections | null>(null);
@@ -34,8 +46,10 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
   const actionLock = useRef(false);
   const previewHeading = useRef<HTMLHeadingElement>(null);
   const dirty = !sameSource(source, saved?.source ?? emptySource);
-  const deferredSource = useDeferredValue(view === 'saved' && saved ? saved.source : source);
+  const [deferredSource, setDeferredSource] = useState(source);
+  useEffect(() => { const timer = window.setTimeout(() => setDeferredSource(source), 300); return () => window.clearTimeout(timer); }, [source]);
   const documentHtml = useMemo(() => view === 'saved' && saved ? saved.previewHtml : buildPreview(deferredSource), [deferredSource, view, saved]);
+  const validation = useMemo(() => validateSource(deferredSource), [deferredSource]);
   const driveConnected = !!connections?.google.connected;
 
   async function refreshFiles(pageToken?: string) {
@@ -89,6 +103,12 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
       if (action === 'open') {
         const loaded = await cvApi.load(selectedId);
         setSource({ ...loaded.source }); setSaved(loaded); setPdf(null); setView('saved'); setSaveError('');
+        setDocumentEpoch(current => current + 1);
+        setAsset(null);
+        try {
+          const items = await enhancements.assets(loaded.fileId);
+          if (items.length) setAsset(await enhancements.asset(items[0].id));
+        } catch (error) { setNotice(`CV opened; original reference could not be loaded: ${errorMessage(error)}`); }
       } else if (action === 'delete' && saved) {
         await cvApi.remove(saved);
         setSaved(null); setPdf(null); setView('editor'); setSelectedId('');
@@ -106,6 +126,8 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
   function newDocument() {
     if (dirty && !window.confirm(leaveMessage)) return;
     setSource({ ...emptySource }); setSaved(null); setPdf(null); setView('editor'); setSelectedId(''); setSaveError(''); setNotice('');
+    setAsset(null);
+    setDocumentEpoch(current => current + 1);
   }
 
   useEffect(() => {
@@ -150,6 +172,10 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
       setNotice('');
       setView('saved');
       setSelectedId(result.fileId);
+      if (asset) {
+        try { setAsset(await enhancements.link(asset, result)); }
+        catch (error) { setNotice(`CV saved; linking the original failed: ${errorMessage(error)}. The original is still available under Previous uploads.`); }
+      }
       refreshFiles().catch(error => setNotice(`CV saved; file list refresh failed: ${errorMessage(error)}`));
     } catch (error) {
       setSaveError(errorMessage(error));
@@ -227,7 +253,7 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
       <div className="cv-notice" id="cv-drive-status">
         {connectionError && <p className="cv-error" role="alert">{connectionError}</p>}
         <strong>{driveConnected ? 'Google Drive connected' : 'Connect Google Drive to save your CV'}</strong>
-        <p>Editable CV source is saved only to your connected Google Drive. A save is confirmed after retrieving the saved file.</p>
+        <p>Editable CV files are saved to your connected Google Drive. Private source revisions and analysis history are retained by this application. A save is confirmed after retrieving the saved file.</p>
         {connections && !connections.google.configured && <p>Google Drive is not configured yet. Ask the site administrator to enable the connection.</p>}
         <div className="cv-actions">
           <button className="btn btn-outline" disabled={busy || saving || !connections?.google.configured} onClick={() => connectionAction('google')}>{driveConnected ? 'Reconnect Google Drive' : 'Connect Google Drive'}</button>
@@ -262,12 +288,14 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
           <label htmlFor="cv-title">Document name</label>
           <input id="cv-title" value={source.title} disabled={busy}
             onChange={event => setSource({ ...source, title: event.target.value })} />
-          <label htmlFor="cv-html">HTML, CSS &amp; Bootstrap</label>
-          <textarea id="cv-html" value={source.html} disabled={busy} spellCheck={false} autoCapitalize="off" autoCorrect="off"
-            placeholder="Write or paste a complete HTML document, including CSS in <style> blocks..."
-            aria-describedby="cv-html-help cv-bootstrap-help"
-            onChange={event => setSource({ ...source, html: event.target.value })} />
-          <p id="cv-html-help" className="cv-help">Write a complete HTML document or an HTML fragment in this single editor, with no character or word limit. Include CSS inside &lt;style&gt; blocks. Scripts, forms, embeds and navigation remain disabled. Images must be embedded PNG, JPEG, GIF or WebP data URLs.</p>
+          <PhotoEditor key={documentEpoch} source={source} onChange={setSource} disabled={busy || saving} />
+          <label htmlFor="cv-html">HTML &amp; Bootstrap</label>
+          <SourceEditor value={source.html} language="html" reveal={reveal} disabled={busy || saving} onChange={html => setSource(current => ({ ...current, html }))} />
+          <label htmlFor="cv-css">CSS</label>
+          <SourceEditor value={source.css} language="css" disabled={busy || saving} onChange={css => setSource(current => ({ ...current, css }))} />
+          <p id="cv-html-help" className="cv-help">Line numbers, syntax highlighting, search, Ctrl+Z undo and Ctrl+Shift+Z redo are supported. Your source is preserved; preview safety rules do not rewrite it. Scripts and external resources are disabled.</p>
+          {validation.map(message => <p className="cv-notice" key={message}>{message}</p>)}
+          <div className="cv-actions"><button className="btn btn-outline" onClick={() => downloadSource(source.html, 'cv.html', 'text/html')}>Download HTML</button><button className="btn btn-outline" onClick={() => downloadSource(source.css, 'cv.css', 'text/css')}>Download CSS</button></div>
           <p id="cv-bootstrap-help" className="cv-help">Bootstrap 5.3.8 CSS is included inside the preview and PDF. Add your CSS in &lt;style&gt; blocks. External resources and Bootstrap JavaScript are disabled.</p>
         </section>}
         <section className="cv-panel cv-preview" aria-label={view === 'saved' ? 'Saved CV preview' : 'Live CV preview'}>
@@ -277,6 +305,11 @@ export default function CvBuilder({ integrations = cvIntegrations }: { integrati
             sandbox="" referrerPolicy="no-referrer" srcDoc={documentHtml} />
         </section>
       </div>
+
+      <EnhancementPanel key={documentEpoch} source={source} saved={saved} asset={asset} disabled={actionBusy || saving} driveConnected={driveConnected} onBusy={setEnhancementBusy}
+        onLocate={text => { setView('editor'); setReveal(current => ({text,sequence:current.sequence+1})); }}
+        onAsset={value => { setAsset(value); if (value && value.id !== asset?.id) { setSaved(null); setSelectedId(''); setPdf(null); setDocumentEpoch(current => current + 1); } }}
+        onSource={value => { setSource(value); setView('editor'); }} />
 
       <section className="cv-panel cv-exports" aria-labelledby="cv-export-title">
         <h2 id="cv-export-title">PDF download, sharing &amp; export</h2>

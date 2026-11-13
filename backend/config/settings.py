@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import json
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -189,4 +190,11 @@ MICROSOFT_TENANT = os.getenv("MICROSOFT_TENANT", "common")
 MICROSOFT_REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI", "http://localhost:8000/api/cv/oauth/microsoft/callback/")
 CV_PDF_TIMEOUT_SECONDS = int(os.getenv("CV_PDF_TIMEOUT_SECONDS", "45"))
 CV_PDF_CONCURRENCY = int(os.getenv("CV_PDF_CONCURRENCY", "2"))
+CV_UPLOAD_MAX_BYTES = int(os.getenv("CV_UPLOAD_MAX_BYTES", "10485760"))
+CV_TESSERACT_COMMAND = os.getenv("CV_TESSERACT_COMMAND", "tesseract")
+CV_OCR_LANGUAGE = os.getenv("CV_OCR_LANGUAGE", "eng")
+CV_AI_URL = os.getenv("CV_AI_URL", "")
+CV_AI_KEY = os.getenv("CV_AI_KEY", "")
+CV_AI_MODEL = os.getenv("CV_AI_MODEL", "")
+CV_SCORE_WEIGHTS = json.loads(os.getenv("CV_SCORE_WEIGHTS", "{}"))
 

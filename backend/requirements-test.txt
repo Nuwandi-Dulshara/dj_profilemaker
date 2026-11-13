@@ -1,2 +1,1 @@
--r requirements-cv.txt
-pypdf>=5,<7
+-r requirements.txt

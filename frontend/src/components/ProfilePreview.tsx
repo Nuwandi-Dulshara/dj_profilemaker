@@ -35,7 +35,7 @@ export default function ProfilePreview({ profile, isPublicView = false }: Props)
   const containerId = `preview-card-${profile.slug || 'profile'}`;
 
   const handleDownloadPdf = () => {
-    exportProfileAsPdf(containerId, `${profile.slug || 'resume'}-resume.pdf`);
+    exportProfileAsPdf(profile, `${profile.slug || 'resume'}-resume.pdf`);
   };
 
   return (

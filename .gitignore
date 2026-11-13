@@ -1,0 +1,11 @@
+# Local verification artifacts
+backend/.playwright/
+frontend/.npm-cache/
+artifacts/
+
+# Regenerable Python tooling output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/

@@ -6,6 +6,10 @@ import signal
 import subprocess
 import sys
 import threading
+import time
+import hashlib
+import json
+from collections import OrderedDict
 from xml.etree import ElementTree as ET
 
 import html5lib
@@ -54,7 +58,36 @@ def build_preview(source):
     return "<!doctype html>" + html5lib.serialize(doc, tree="etree", omit_optional_tags=False, quote_attr_values="always")
 
 
+PDF_CACHE = OrderedDict()
+PDF_CACHE_LOCK = threading.Lock()
+
+
+def clear_pdf_cache():
+    with PDF_CACHE_LOCK:
+        PDF_CACHE.clear()
+
+
 def render_pdf(source):
+    # Callers still verify cloud ownership and current saved revision before this.
+    key = hashlib.sha256(json.dumps(source, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    now = time.monotonic()
+    with PDF_CACHE_LOCK:
+        for old in list(PDF_CACHE):
+            if PDF_CACHE[old][0] <= now:
+                del PDF_CACHE[old]
+        if key in PDF_CACHE:
+            PDF_CACHE.move_to_end(key)
+            return PDF_CACHE[key][1]
+    result = render_pdf_uncached(source)
+    if len(result) <= 5 * 1024 * 1024:
+        with PDF_CACHE_LOCK:
+            PDF_CACHE[key] = (time.monotonic() + 120, result)
+            while len(PDF_CACHE) > 8:
+                PDF_CACHE.popitem(last=False)
+    return result
+
+
+def render_pdf_uncached(source):
     if not SLOTS.acquire(blocking=False):
         raise CvError("The PDF renderer is busy. Please retry shortly.", 429)
     process = None

@@ -130,6 +130,8 @@ class DocumentsView(CvView):
         serializer = SourceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ident, source = self.drive(request).save(dict(serializer.validated_data))
+        from .models import CvRevision
+        CvRevision.objects.get_or_create(user=request.user, file_id=ident, digest=revision(source), defaults={"source": source})
         return Response(confirmed_document(request.user, ident, source), status=201)
 
 
@@ -146,6 +148,8 @@ class DocumentView(CvView):
         serializer = SourceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ident, source = self.drive(request).save(dict(serializer.validated_data), ident)
+        from .models import CvRevision
+        CvRevision.objects.get_or_create(user=request.user, file_id=ident, digest=revision(source), defaults={"source": source})
         return Response(confirmed_document(request.user, ident, source))
 
     def delete(self, request, ident):

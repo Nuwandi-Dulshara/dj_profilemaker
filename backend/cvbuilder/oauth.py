@@ -55,7 +55,7 @@ def configured(provider):
 
 def require_config(provider):
     if not configured(provider):
-        raise CvError(f"{provider.title()} OAuth is not configured on the server. See backend/CV_SETUP.md.", 503)
+        raise CvError(f"{provider.title()} OAuth is not configured on the server. See backend/.env.example.", 503)
     return config(provider)
 
 

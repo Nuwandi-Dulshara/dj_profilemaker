@@ -9,6 +9,8 @@ import { emptyProfile, templates } from '../data/templates';
 import type { Profile } from '../data/templates';
 import { profilesApi } from '../api/profiles';
 import { useTheme } from '../context/ThemeContext';
+import { profileSource } from '../features/cv/profileSource';
+import type { CvTemplate } from '../features/cv/profileSource';
 
 export default function Builder() {
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ export default function Builder() {
   const [profile, setProfile] = useState<Profile>(() => ({ ...emptyProfile }));
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [cvTemplate, setCvTemplate] = useState<CvTemplate>('professional');
 
   useEffect(() => {
     async function fetchProfile() {
@@ -105,6 +108,10 @@ export default function Builder() {
           <p>Design your custom portfolio with real-time preview and instant PDF & QR generation.</p>
         </div>
         <div className="page-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <select className="cv-template-select" aria-label="CV document template" value={cvTemplate} onChange={event => setCvTemplate(event.target.value as CvTemplate)}>
+            <option value="professional">Professional CV</option><option value="minimal">Minimal CV</option><option value="executive">Executive CV</option>
+          </select>
+          <button type="button" className="btn btn-outline" disabled={!profile.name.trim()} onClick={() => navigate('/cv-builder', { state: { cvSource: profileSource(profile, cvTemplate) } })}>Generate CV</button>
           <button
             type="button"
             className="btn btn-outline"

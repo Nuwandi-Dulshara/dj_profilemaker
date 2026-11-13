@@ -2,3 +2,5 @@
 cryptography>=44,<47
 html5lib==1.1
 playwright>=1.51,<2
+pypdf>=5,<7
+pdfplumber>=0.11,<0.12
