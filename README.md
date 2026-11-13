@@ -1,223 +1,81 @@
-# Profile Studio Pro — Full Stack Web Application
+# Profile Studio
 
-A modern, production-grade digital profile and portfolio builder built with **React 19 + TypeScript + Vite** on the frontend and **Django 5.2 + Django REST Framework + MySQL** on the backend.
+A Django REST API and React/TypeScript application for building public professional profiles and editable CVs.
 
----
+## Features and structure
 
-## 🚀 Features
+- Profile editing, portfolio templates, public sharing, QR codes and professional A4 resume downloads.
+- HTML/CSS CV editing with isolated previews, optional cropped profile photos and photo-free export mode.
+- Google Drive source storage, PDF download/sharing, and Google Drive/OneDrive PDF exports.
+- Document imports, deterministic CV/job-description analysis and optional AI suggestions that require review.
 
-- **Authentication & Security**: Token-based user authentication (Register, Login, Me, Logout) with password hashing and role validation.
-- **Dynamic Profile Builder**:
-  - Live split-screen real-time preview.
-  - 4 customizable design templates: `Professional`, `Creative`, `Minimal`, `Modern`.
-  - Personal details, biography, contact information, and profile photo upload.
-  - Interactive skill level editor with 0–100% progress visualization.
-  - Social / portfolio link manager with platform selection and validation.
-- **Personal Workspace & Dashboard**:
-  - View all user-created profiles with live search and filtering.
-  - Edit existing profiles with prefilled data from MySQL.
-  - Delete profiles with confirmation dialog and database cascade cleanup.
-- **Public Profile Showcase**:
-  - SEO-friendly, unique slug-based URLs: `/p/:slug`.
-  - Accessible globally without authentication.
-- **Relational MySQL Database**:
-  - Normalized schema with UUID primary keys and cascading foreign keys.
-  - Auto-generated collision-resistant URL slugs.
+| Directory | Responsibility |
+|---|---|
+| `backend/accounts/` | Authentication and account APIs |
+| `backend/profiles/` | Profiles, public sharing and resume PDFs |
+| `backend/cvbuilder/` | CV rendering, cloud storage, imports and analysis |
+| `backend/config/` | Django configuration and isolated test settings |
+| `frontend/src/` | React pages, components and CV workspace |
+| `frontend/tests/` | Frontend unit tests and browser fixture |
 
----
+## Local development
 
-## 🛠️ Tech Stack
+The existing environment uses Python 3.11 and Node 22. Use MySQL for normal development; automated tests use isolated SQLite. Install MySQL client build prerequisites if required by your operating system.
 
-- **Frontend**: React 19, TypeScript, Vite, React Router 7, Lucide React, Vanilla CSS.
-- **Backend**: Python 3.11, Django 5.2, Django REST Framework (DRF), django-cors-headers, Pillow.
-- **Database**: MySQL 8.0+ / MariaDB (`profile_studio_db`).
+PowerShell, from the repository root:
 
----
-
-## 📁 Project Architecture
-
-```
-dj_profilemaker/
-├── backend/
-│   ├── accounts/              # User authentication app
-│   │   ├── models.py
-│   │   ├── serializers.py     # Register, Login, User serializers
-│   │   ├── views.py           # RegisterView, LoginView, LogoutView, MeView
-│   │   ├── urls.py            # /api/auth/*
-│   │   └── tests.py           # Unit tests
-│   ├── profiles/              # Profiles app
-│   │   ├── models.py          # Profile, Skill, SocialLink models
-│   │   ├── serializers.py     # ProfileSerializer (nested), Base64ImageField
-│   │   ├── views.py           # ProfileViewSet, PublicProfileView, DashboardStatsView
-│   │   ├── urls.py            # /api/profiles/* and /api/public/*
-│   │   ├── tests.py           # Unit tests
-│   │   └── management/
-│   │       └── commands/
-│   │           └── seed_data.py  # Database seeding command
-│   ├── config/                # Django project settings & root URLs
-│   │   ├── settings.py
-│   │   └── urls.py
-│   ├── media/                 # Uploaded profile photos
-│   ├── .env                   # Environment configurations
-│   ├── .env.example
-│   └── manage.py
-├── frontend/
-│   ├── src/
-│   │   ├── api/               # API clients (auth, profiles, client)
-│   │   ├── components/        # ProfileForm, ProfilePreview, ProtectedRoute
-│   │   ├── context/           # AuthContext & AuthProvider
-│   │   ├── data/              # Template definitions & types
-│   │   ├── pages/             # Home, Auth, Dashboard, Builder, PublicProfile
-│   │   ├── App.tsx            # Routes and layout
-│   │   └── index.css          # Core design system
-│   ├── package.json
-│   └── vite.config.ts
-└── README.md
-```
-
----
-
-## 🗄️ Database Schema (MySQL)
-
-### 1. `auth_user`
-- `id` INT AUTO_INCREMENT PRIMARY KEY
-- `username` VARCHAR(150) UNIQUE
-- `email` VARCHAR(254) UNIQUE
-- `first_name` VARCHAR(150)
-- `password` VARCHAR(128)
-- `date_joined` DATETIME
-
-### 2. `profiles_profile`
-- `id` CHAR(36) (UUID) PRIMARY KEY
-- `user_id` INT FOREIGN KEY REFERENCES `auth_user(id)` ON DELETE CASCADE
-- `name` VARCHAR(255)
-- `title` VARCHAR(255)
-- `bio` TEXT
-- `email` VARCHAR(254)
-- `phone` VARCHAR(50)
-- `location` VARCHAR(255)
-- `photo` VARCHAR(255) (ImageField)
-- `template_id` VARCHAR(50) (professional, creative, minimal, modern)
-- `slug` VARCHAR(255) UNIQUE (Indexed)
-- `created_at` DATETIME(6)
-- `updated_at` DATETIME(6)
-
-### 3. `profiles_skill`
-- `id` CHAR(36) (UUID) PRIMARY KEY
-- `profile_id` CHAR(36) FOREIGN KEY REFERENCES `profiles_profile(id)` ON DELETE CASCADE
-- `name` VARCHAR(150)
-- `level` SMALLINT (0 to 100)
-- `order` INT
-
-### 4. `profiles_sociallink`
-- `id` CHAR(36) (UUID) PRIMARY KEY
-- `profile_id` CHAR(36) FOREIGN KEY REFERENCES `profiles_profile(id)` ON DELETE CASCADE
-- `platform` VARCHAR(50) (GitHub, LinkedIn, Portfolio, Instagram, Other)
-- `url` VARCHAR(500)
-- `order` INT
-
----
-
-## 🌐 API Endpoints
-
-### Authentication (`/api/auth/`)
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register/` | Register new user account | No |
-| `POST` | `/api/auth/login/` | Log in and receive Token | No |
-| `POST` | `/api/auth/logout/` | Invalidate current auth token | Yes (Token) |
-| `GET` | `/api/auth/me/` | Fetch current user details | Yes (Token) |
-
-### Profiles (`/api/profiles/`)
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/profiles/` | List all profiles owned by user (supports `?search=`) | Yes (Token) |
-| `POST` | `/api/profiles/` | Create a new profile with nested skills & links | Yes (Token) |
-| `GET` | `/api/profiles/<id>/` | Retrieve profile by UUID | Yes (Token) |
-| `PUT` | `/api/profiles/<id>/` | Update profile with nested skills & links | Yes (Token) |
-| `DELETE` | `/api/profiles/<id>/` | Delete profile and all linked records | Yes (Token) |
-| `GET` | `/api/profiles/dashboard/stats/` | Get statistics for user workspace | Yes (Token) |
-
-### Public Profiles (`/api/public/`)
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/public/p/<slug>/` | View public profile by slug | No |
-
----
-
-## ⚙️ Setup and Installation Instructions
-
-### Prerequisites
-- Python 3.10+
-- Node.js 18+ and npm
-- MySQL Server 8.0+ running on `127.0.0.1:3306`
-
-### 1. Database Setup
-Ensure MySQL is running and the database exists:
-```sql
-CREATE DATABASE IF NOT EXISTS profile_studio_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 2. Backend Setup
-```bash
+```powershell
 cd backend
-
-# Create & activate virtual environment (if not already created)
 python -m venv venv
-venv\Scripts\activate   # Windows
-# source venv/bin/activate # Linux/Mac
-
-# Install dependencies
-pip install django djangorestframework django-cors-headers mysqlclient pillow python-dotenv
-
-# Configure environment variables in backend/.env
-# Copy from .env.example if needed
-
-# Apply database migrations
-python manage.py migrate
-
-# Seed initial demo user and demo profile
-python manage.py seed_data
-
-# Run Django unit tests
-python manage.py test
-
-# Start the Django development server
-python manage.py runserver 127.0.0.1:8000
+venv/Scripts/python.exe -m pip install -r requirements.txt
+# For a new checkout only; preserve any existing .env.
+Copy-Item .env.example .env
+# Edit .env: set a unique SECRET_KEY and your MySQL connection details.
+# Create the database named by DB_NAME in MySQL before migrating.
+venv/Scripts/python.exe manage.py migrate
+$env:PLAYWRIGHT_BROWSERS_PATH = "$PWD/.playwright"
+venv/Scripts/python.exe -m playwright install chromium
+venv/Scripts/python.exe manage.py runserver
 ```
 
-**Default Demo Credentials:**
-- Email: `alex@example.com`
-- Password: `password123`
+In a second terminal:
 
-### 3. Frontend Setup
-```bash
+```powershell
 cd frontend
-
-# Install npm packages
-npm install
-
-# Build verification
-npm run build
-
-# Start the Vite development server
-npm run dev
+npm.cmd ci
+npm.cmd run dev
 ```
 
-The frontend will run at `http://localhost:5173/` (or next available port).
+Open `http://localhost:5173`. Vite proxies `/api` and `/media` to Django on port 8000. On Unix, use `venv/bin/python`, `npm`, and the equivalent environment-variable syntax. Keep `PLAYWRIGHT_BROWSERS_PATH` set to the same absolute installation directory when launching the backend.
 
----
+See [backend/.env.example](backend/.env.example) for OAuth, token encryption, OCR, optional AI, and upload settings. Basic profile editing does not require cloud accounts. CV source saving and its saved-version exports require Google Drive configuration.
 
-## 🧪 Testing and Verification
+## Testing and maintenance
 
-Run backend unit tests:
-```bash
+```powershell
 cd backend
-venv\Scripts\python.exe manage.py test
+venv/Scripts/python.exe -m pip install -r requirements-test.txt
+$env:PLAYWRIGHT_BROWSERS_PATH = "$PWD/.playwright"
+# Optional: isolate the browser suite from another local Vite process.
+$env:CV_BROWSER_TEST_PORT = "5188"
+venv/Scripts/python.exe manage.py test accounts profiles cvbuilder --settings=config.test_settings --noinput
+venv/Scripts/python.exe manage.py makemigrations --check --dry-run --settings=config.test_settings
+venv/Scripts/python.exe -m cvbuilder.benchmark
+venv/Scripts/python.exe -m profiles.check_resume_sample
 ```
 
-Run end-to-end integration verification:
-```bash
-cd backend
-venv\Scripts\python.exe test_e2e.py
-```
+From `frontend`, run `npm.cmd test`, `npm.cmd run build`, and `npm.cmd run lint`. The build type-checks the frontend. Browser tests need installed frontend dependencies and Chromium; cloud/AI transport is mocked. Generated screenshots, PDF samples and benchmark output belong in the ignored `artifacts/` directory and can be regenerated.
+
+`backend/test_e2e.py` is a separate legacy live-server smoke script. It requires seeded test credentials and changes account/profile data; use only against a disposable development database. It is retained alongside the isolated automated suites.
+
+Repository-wide ESLint currently reports existing issues in account/context/dashboard code and Builder typing. Vite reports a large CV/editor bundle. Neither warning should be represented as a clean lint or bundle-size result.
+
+## Deployment and limitations
+
+Build the frontend with `npm.cmd ci` and `npm.cmd run build`; deploy `frontend/dist/` with SPA fallback routing. Proxy `/api` and `/media` to Django. Configure a production WSGI/ASGI server, MySQL, HTTPS, `DEBUG=False`, `ALLOWED_HOSTS`, `FRONTEND_URL`, secure secrets, media/static storage and exact OAuth callback URLs. Provision matching Chromium and, if needed, Tesseract. Review migrations and backups before applying them to a real database. No turnkey production deployment configuration is included.
+
+CV analysis scores are deterministic heuristics, not an ATS emulator; imported layouts can be approximations, and AI output requires factual review. Real OAuth permissions, OCR quality and configured AI providers require environment-specific smoke tests. Photo-free mode excludes the photo managed by the photo controls; arbitrary images in authored HTML remain the author's responsibility.
+
+## Development provenance
+
+This project has used AI-assisted development, including Codex assistance with CV enhancements, resume PDF output, photo controls and repository maintenance. The implementation builds on the existing Django/React application and third-party libraries. Git commits, authorship, migrations, tests and source history have not been rewritten.

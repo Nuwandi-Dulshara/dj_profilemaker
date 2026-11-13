@@ -17,7 +17,6 @@ import {
   Settings as SettingsIcon,
   Moon,
   Sun,
-  FileCode,
   Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -128,15 +127,9 @@ export default function Dashboard() {
           <Link className="btn btn-outline" to="/settings" title="Account Settings">
             <SettingsIcon size={16} /> Settings
           </Link>
-          <a
-            className="btn btn-outline"
-            href="http://127.0.0.1:8000/api/docs/"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Swagger API Documentation"
-          >
-            <FileCode size={16} /> API Docs
-          </a>
+          <Link className="btn btn-outline" to="/cv-builder">
+            <Plus size={17} /> Create CV
+          </Link>
           <Link className="btn btn-primary" to="/builder">
             <Plus size={17} /> New Profile
           </Link>

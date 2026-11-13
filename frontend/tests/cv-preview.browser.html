@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>CV preview browser checks</title></head>
+<body><h1>CV preview browser checks</h1><pre id="results">Running...</pre>
+<script type="module">
+import { buildPreview } from '/src/features/cv/preview.ts';
+const results = [];
+function check(name, pass) {
+  results.push(`${pass ? 'PASS' : 'FAIL'} ${name}`);
+}
+const documentHtml = buildPreview({ title: 'CV security test', html: `
+<h1 class="display-4" onclick="alert(1)">CV test</h1>
+<script>parent.document.body.innerHTML = 'unsafe';<\/script>
+<iframe src="https://example.invalid"></iframe>
+<meta http-equiv="refresh" content="0;url=https://example.invalid">
+<base href="https://example.invalid">
+<form action="https://example.invalid"><input name="cv"></form>
+<a href="javascript:alert(1)" target="_top">Contact</a>
+<img src="https://example.invalid/private" onerror="alert(1)">
+<svg onload="alert(1)"><foreignObject>unsafe</foreignObject></svg>
+<p style="color: navy">Formatting works</p>`, css: `h1 { color: navy; } </style><script>alert(1)<\/script>` });
+const doc = new DOMParser().parseFromString(documentHtml, 'text/html');
+check('CV markup and class names retained', doc.querySelector('h1')?.className === 'display-4');
+check('Inline formatting retained', doc.querySelector('p')?.style.color === 'navy');
+check('Active elements removed', !doc.querySelector('script, iframe, base, form, input, svg'));
+check('Meta refresh removed', !doc.querySelector('meta[http-equiv="refresh"]'));
+check('Event handlers and navigation removed', !doc.querySelector('[onclick], [onerror], a[href], [target]'));
+check('Remote image removed', !doc.querySelector('img[src]'));
+check('Restrictive network CSP present', doc.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content.includes("default-src 'none'"));
+check('CSS breakout cannot create script', !doc.querySelector('script') && doc.querySelectorAll('style').length === 3);
+const fullSource = '<!doctype html><html lang="fr" class="cv-root"><head><title>Complete CV</title>' +
+  '<style>.row { display: flex; } .col { flex: 1; } h1 { color: rgb(12, 34, 56); }</style>' +
+  '</head><body class="container" style="padding: 12mm"><div class="row"><section class="col"><h1>Complete document</h1></section></div>' +
+  '<style media="print">h1 { color: black; }</style></body></html>';
+const fullHtml = buildPreview({ title: 'Complete document', html: fullSource, css: '' });
+const fullDoc = new DOMParser().parseFromString(fullHtml, 'text/html');
+check('Complete HTML document retains root attributes', fullDoc.documentElement.lang === 'fr' && fullDoc.documentElement.className === 'cv-root');
+check('Body attributes retained', fullDoc.body.className === 'container' && fullDoc.body.style.padding === '12mm');
+check('Full documents retain their own page margins', !fullDoc.body.hasAttribute('data-cv-fragment'));
+check('Fragments receive default page margins', doc.body.getAttribute('data-cv-fragment') === 'true');
+check('Internal CSS retained', [...fullDoc.querySelectorAll('style')].some(style => style.textContent.includes('.row { display: flex; }')));
+check('Print stylesheet media retained', !!fullDoc.querySelector('style[media="print"]'));
+check('Complete document has one html, head and body', ['html', 'head', 'body'].every(tag => fullDoc.querySelectorAll(tag).length === 1));
+check('Bootstrap markup retained', !!fullDoc.querySelector('.container .row .col'));
+check('CSP precedes authored styles', fullDoc.head.firstElementChild?.getAttribute('http-equiv') === 'Content-Security-Policy');
+const longContent = 'CV content '.repeat(20000);
+const longDoc = new DOMParser().parseFromString(buildPreview({ title: 'Long CV', html: `<p>${longContent}</p>`, css: '' }), 'text/html');
+check('Long source is not truncated', longDoc.querySelector('p')?.textContent === longContent);
+const frame = document.createElement('iframe');
+frame.title = 'Test CV preview';
+frame.setAttribute('sandbox', '');
+frame.srcdoc = documentHtml;
+frame.style.cssText = 'width: min(100%, 850px); height: 500px';
+frame.addEventListener('load', () => {
+  let isolated = false;
+  try { isolated = frame.contentDocument === null; } catch { isolated = true; }
+  check('Preview is isolated from parent document', isolated);
+  document.querySelector('#results').textContent = results.join('\n');
+});
+document.body.append(frame);
+</script></body></html>

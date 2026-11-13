@@ -8,9 +8,13 @@ from .views import (
     ForgotPasswordView,
     ResetPasswordView,
     ResendVerificationView,
+    CsrfView, BrowserLoginView, BrowserRegisterView,
 )
 
 urlpatterns = [
+    path("csrf/", CsrfView.as_view(), name="auth-csrf"),
+    path("session/login/", BrowserLoginView.as_view(), name="session-login"),
+    path("session/register/", BrowserRegisterView.as_view(), name="session-register"),
     path("register/", RegisterView.as_view(), name="auth-register"),
     path("login/", LoginView.as_view(), name="auth-login"),
     path("logout/", LogoutView.as_view(), name="auth-logout"),

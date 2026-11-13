@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { lazy, Suspense } from 'react';
 
 import Home from './pages/Home';
 import Builder from './pages/Builder';
+const CvBuilder = lazy(() => import('./pages/CvBuilder'));
 import Dashboard from './pages/Dashboard';
 import PublicProfile from './pages/PublicProfile';
 import Auth from './pages/Auth';
@@ -36,6 +38,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Builder />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cv-builder"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<main className="container" role="status">Loading CV workspace…</main>}><CvBuilder /></Suspense>
             </ProtectedRoute>
           }
         />
