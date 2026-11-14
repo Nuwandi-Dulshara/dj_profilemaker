@@ -1,0 +1,178 @@
+# PROGRESS.md
+
+## Project Status
+
+### 2026-11-15 — Registration database initialization fixed and verified
+
+- Registration POST returned 500 because `accounts_authratebucket` did not exist. All Django migrations were unapplied in the configured `advanced_cv_studio` database. The earlier button/config checks had not exercised account creation.
+- Applied all 16 existing migrations successfully, creating account, throttle, authentication and session tables. No production code changes or authentication bypasses required. `migrate --check` now passes.
+- PostgreSQL-backed accounts suite **9/9 passed** against Django's isolated test database, which was destroyed afterward. Expected mocked email-delivery failure logging appeared in its dedicated test.
+- Real Chromium registration through Vite/Django returned **201 Created**, navigated to `/dashboard`, showed the authenticated welcome after refresh and successfully logged out to `/login`. An immediate pre-render heading visibility probe was false, but the subsequent awaited heading check passed. Removed only the uniquely identified temporary verification account afterward.
+- Local account registration is now verified end to end. Remaining module 01 checks include complete browser password-reset flow and final security/integration review; module 01 is not yet marked fully complete.
+
+### 2026-11-15 — Resolved disabled local registration at runtime
+
+- Root cause: the running Django process still held empty policy settings from before the local `.env` update. Both direct and Vite-proxied config endpoints returned `registration_enabled: false` despite correct values on disk.
+- Restarted only the stale Django listener on port 8000 (process termination required elevated permission). Started Django with `--noreload` using the project's virtual environment. No policy bypass or production-code change was needed.
+- Verified direct and proxied config endpoints return HTTP 200 with `registration_enabled: true`, actual local policy links and version `local-dev-2026-11-15`.
+- Live Chromium verification without API mocks: Create Account is enabled, agreement checkbox is visible/checkable, Terms links to the implemented page, and clicking the button invokes required-field validation. No user account was created by this check. Refresh any already-open registration tab to discard its cached configuration.
+
+### 2026-11-15 — Frontend typography and copy polish completed
+
+- Applied a shared rem-based scale across home, authentication, policy and fallback pages: 16px navigation/buttons/body text, 18px introductory text on larger screens, and a 14px secondary-text minimum. Removed mobile rules that shrank text below that minimum. Improved form spacing, input sizing, wrapping and tablet layout.
+- Removed the requested marketing phrases, card slogans, decorative auth headings/footnotes and footer tagline. Rewrote descriptions around concrete document tasks and removed implementation jargon from marketing copy.
+- Simplified the decorative hero preview to a clearly labeled sample CV layout with readable section names, removing miniature code, fictional CV copy and floating promotional labels. Existing routes, six feature cards, section navigation, forms and authentication behavior remain intact; theme and sea photograph preserved.
+- Modified `frontend/src/styles.css`, `frontend/src/features/home/{HomePage,StudioIllustration}.tsx`, `frontend/src/features/auth/{AuthLayout,AuthPages}.tsx`, `frontend/src/features/auth/auth.css`, and `frontend/src/features/legal/legal.css`.
+- Verification: component suite **12/12 passed**; TypeScript/production build passed (existing non-fatal Zod annotation warnings). Chromium checked eight routes at 320/390/768/900/1024/1440px: **48/48 layout checks passed**, no horizontal overflow or visible links/paragraphs/labels/helper text/buttons below 14px. Desktop navigation measured 16px and mobile Escape dismissal passed. Home desktop/mobile and registration mobile screenshots visually inspected; artifacts in ignored `frontend/test-results/type-*.png`.
+- Browser layout checks mocked session/config responses to inspect guest forms independently of database availability; these do not claim backend authentication acceptance. Remaining module 01 database/reset/security integration work is unchanged.
+
+### 2026-11-15 — Local-development policy pages completed
+
+- User clarified that policies are for local development only, superseding the earlier public-service answer. Added real, publicly accessible React `/terms` and `/privacy` routes with local-use notices, current account/session data handling, test-data guidance, version information and links back to registration.
+- Added `frontend/src/features/legal/LegalPage.tsx`, `legal.css`, `LegalPages.test.tsx`; updated `frontend/src/app/App.tsx` and README. Changed only `TERMS_URL`, `PRIVACY_URL`, and `POLICY_VERSION` in the ignored local `.env`, pointing to these loopback routes with version `local-dev-2026-11-15`. Production defaults remain unchanged.
+- Route tests first failed on the missing pages, then passed. Full component suite **12/12 passed**; TypeScript/production build passed with existing non-fatal Zod annotation warnings.
+- Chromium checked both pages at 390px and 1440px: correct headings and no horizontal overflow. Screenshots saved under ignored `frontend/test-results/legal-*.png`; mobile Terms screenshot visually inspected.
+- A fresh Django process confirms `policies_available() == True` with the new version. Restart the already-running Django process to load `.env`, then refresh registration so the policy checkbox becomes available. Account creation itself remains subject to working database connectivity; no test account was created in this task.
+- Remaining module 01 work: database-backed API/browser acceptance, full reset journey and final security review. These local policies are not intended for a public launch.
+
+### Latest runtime diagnosis — 2026-11-15
+
+- Follow-up registration check: proxied `/api/auth/me/` now returns HTTP 200 with an anonymous session; `/api/auth/config/` returns HTTP 200 with `registration_enabled: false`. The Create Account button is intentionally disabled because `TERMS_URL`, `PRIVACY_URL`, and `POLICY_VERSION` are empty in configuration. Published legal policies are required by the module specification; no placeholder policies or bypass were added. Backend connectivity has recovered for these endpoints; database-backed registration is still unverified.
+
+- Investigated `/register` session-check 500: direct request to `127.0.0.1:8000/api/auth/me/` is refused; the same request through Vite on 5173 returns 500. The configured frontend proxy has no reachable Django backend on port 8000.
+- PostgreSQL processes are now present, but Django's configured database connection still times out (`showmigrations --plan` with `PGCONNECT_TIMEOUT=3`). Django system checks pass. Running PostgreSQL processes alone does not establish that the dedicated application database is reachable.
+- Next: correct/restore the dedicated database connection, run migrations, then start Django on 8000 and retest registration. No runtime configuration or database data was changed during diagnosis.
+
+Implementation in progress — module 00 UI verified; module 01 authentication under development.
+
+## 2026-11-15 — Authentication resume and frontend verification
+
+### Completed and verified
+
+- Read project instructions, architecture, approved design, module 01 specification and execution plan. Inspected existing implementation without rebuilding completed home/auth pages.
+- Found account models/migration, CSRF/session/reset APIs, PostgreSQL throttling, four React auth forms and browser tests already implemented beyond the previous log. Backend integration remains unverified.
+- Added six frontend integration tests: session loading before redirect; bootstrap failure/retry; authenticated guest redirect; pending/duplicate submission with CSRF and API errors; mismatched passwords; published-policy gate.
+- Full component suite: **10/10 passed**. TypeScript and production build passed (non-fatal Rollup annotation warnings in installed Zod).
+- The added tests initially used Playwright's `exact` role-query option in Testing Library; TypeScript caught this. Removed the unsupported option (string role names already match exactly) and reran verification.
+- Django `check`: no issues. `makemigrations --check --dry-run`: no changes detected, with a database connection warning; database migration history was NOT verified.
+
+### Modified files
+
+- `frontend/src/features/auth/AuthPages.test.tsx` — added form/route integration coverage for existing behavior; no production implementation rewritten.
+- `README.md` — backend setup and verification instructions.
+- `docs/superpowers/plans/2026-11-14-module-01.md` — verified frontend checklist and resume ledger.
+- `PROGRESS.md` — actual status and blockers.
+
+### Current task and remaining work
+
+- Resume module 01 **Task 1 backend verification and Task 3 browser integration**. Task 2 component coverage/build are now verified; do not rebuild the home/auth forms.
+- Add and run the full browser reset-email/token/new-password journey. Existing browser tests cover reset-request messaging only. Run all browser tests, inspect responsive screenshots and complete security review after database access is restored.
+- Production registration requires genuine published policy URLs/version; SMTP delivery remains a deployment prerequisite. Module 01 is NOT complete; later modules remain pending.
+
+### Blockers and operational notes
+
+- Existing ignored `.local-postgres/data` is PostgreSQL **17** format. Its recorded executable `D:/softwares/PostgreSQL/17/bin/postgres.exe` is absent; the candidate version-18 directory is empty. No PostgreSQL process was found and port 55432 did not connect.
+- First backend test attempt stalled and was interrupted. Retried with `PGCONNECT_TIMEOUT=3`: discovered 9 tests but failed before executing them with `OperationalError: connection timeout expired`. No backend test success is claimed.
+- Restore compatible PostgreSQL 17 binaries for the existing cluster, or configure a separate dedicated database in `.env`. Do not start version 18 against version-17 data. No cluster data, credentials or unrelated databases were changed.
+- PowerShell blocks `npm.ps1`; use `npm.cmd` without changing execution policy.
+
+This entry supersedes historical current-task statements below.
+
+## 2026-11-14 — Foundation and module 00 UI
+
+### Completed and verified
+
+- React/TypeScript/Vite/Tailwind application with reusable theme, router and original React/CSS workspace illustration.
+- Seven home sections, six feature cards, four process steps, career-profile diagram and dynamic-year footer.
+- Sticky navigation, accessible mobile disclosure, Escape focus return, section navigation, reduced-motion support and route recovery.
+- Component tests: 3/3 passed using patched Vitest 4.1.12.
+- TypeScript and production build passed.
+- Chromium browser suite: 6/6 passed, including 320/390/768/1440px widths, no horizontal overflow, keyboard behavior and reduced motion. Desktop and phone screenshots visually inspected.
+- Independent code review found no material issues. Dependency audit after update reported zero vulnerabilities.
+
+### Files and operational notes
+
+- Added frontend source, configuration, dependency lockfile, component/browser tests, root README and .gitignore.
+- Added module 00 execution plan and marked studio design approved.
+- Original sea photograph and source module specifications preserved.
+- Browser checks require process permissions sufficient for Playwright to clean up its own server on this Windows host. Restricted run hung at teardown; elevated run exited successfully.
+- npm 11.4.2 crashed resolving the security update; an ephemeral npm 11.13.0 invocation installed the patched version successfully. No global npm change.
+
+### Still pending
+
+- Module 00 authentication integration remains OPEN: login/register currently show an explicit unavailable state, not fake forms. Module 00 is not marked fully complete until module 01 replaces these routes and tests them.
+- Module 01 is now being implemented to close that dependency. Django foundation and API tests are in progress and have NOT yet passed.
+- All later modules remain pending. No backend/database functionality is claimed complete.
+
+## 2026-11-14 — Repository assessment and implementation design
+
+### Completed work
+
+- Read AGENTS.md, PROJECT.md, ARCHITECTURE.md, PROCESS.md and all module specifications from 00 through 07.
+- Inspected the repository: requirements and the supplied sea image exist; no application implementation, dependency manifests or migrations exist yet.
+- Wrote `docs/superpowers/specs/2026-11-14-studio-design.md` covering shared architecture, module dependencies, security, persistence, document rendering, exports and acceptance gates.
+- Independent builder review reported no important unanswered design questions.
+
+### Modified files
+
+- `docs/superpowers/specs/2026-11-14-studio-design.md` (new proposed design).
+- `PROGRESS.md` (this assessment).
+
+### Current task
+
+- Obtain approval of the proposed implementation design as required by the loaded brainstorming workflow, then write the implementation plan and begin foundation/module 00.
+
+### Verified environment and limitations
+
+- Node 22.16.0 and Python 3.11.9 are available.
+- PostgreSQL responds on the default port. Application credentials, dedicated database creation and test-database access have not been verified.
+- No PostgreSQL/Django/Redis configuration variable names were found in the current environment.
+- Docker CLI exists, but its daemon is unavailable to this session; local implementation must not require Docker.
+- The supplied sea image exists (2,699,028 bytes) and was not changed.
+- Git requires a command-scoped safe-directory exception because repository ownership differs; no global Git configuration was changed.
+- No application tests or builds ran because application source and test tooling do not yet exist. No module is marked complete.
+
+### Remaining work
+
+- All application implementation and module acceptance checks remain pending, as listed below and in the authoritative module specifications.
+- Earlier modules reference later workflows. Implement shared service dependencies as needed and keep cross-module acceptance items open until tested; never substitute fake workflows.
+
+## Completed
+
+- [x] Project requirements defined
+- [x] Technology stack selected
+- [x] Main modules identified
+- [x] Development architecture planned
+
+## Pending
+
+- [ ] Project setup
+- [ ] User authentication
+- [ ] Dashboard
+- [ ] Project management
+- [ ] React document engine
+- [ ] Advanced CV Builder
+- [ ] CV Templates
+- [ ] Cover Letter Builder
+- [ ] Career Profile Vault
+- [ ] ATS Analyzer
+- [ ] Job Description Matcher
+- [ ] Resume Content Analyzer
+- [ ] Local AI Assistant
+- [ ] Import / Export
+- [ ] Sharing and Collaboration
+- [ ] User Profile
+- [ ] Deleted Files
+- [ ] Testing and Deployment
+
+## Update Rules
+
+After every task, record:
+
+- Completed work
+- Modified files
+- Current task
+- Remaining tasks
+- Bugs or blockers
+
+Never mark unfinished or untested functionality as completed.
