@@ -2,6 +2,48 @@
 
 ## Project Status
 
+### 2026-11-15 — Dashboard (Module 02) and Project Management / Your Projects (Module 07) implemented and verified
+
+- **Completed work:**
+  - Read all repository `.md` files (`AGENTS.md`, `PROJECT.md`, `ARCHITECTURE.md`, `PROCESS.md`, `PROGRESS.md`, `README.md`, `docs/superpowers/*`, and `modules/00` through `07`).
+  - **Backend (`backend/workspace/`):**
+    - Extended `Folder` with optional hierarchical `parent` (`ForeignKey('self')`) in `workspace/models.py` and `workspace/migrations/0001_initial.py`, and applied `workspace.0001_initial` to both the application database and the isolated `cv_studio_e2e` database.
+    - Added server-side folder hierarchy cycle prevention, subfolder creation, folder rename, folder move, and safe folder removal (`GET/POST /api/folders/`, `PATCH/DELETE /api/folders/<uuid>/`, and `/api/project-folders/` aliases) with annotated active `project_count`.
+    - Extended project listing (`GET/POST /api/projects/` and `GET /api/dashboard/recent-projects/`), project detail (`GET/PATCH/DELETE /api/projects/<uuid>/`), project actions (`duplicate`, `delete`, `restore`), and bulk operations (`POST /api/projects/bulk-actions/` supporting `favorite`, `unfavorite`, `move`, `archive`, `unarchive`, `delete`, and `restore`).
+    - Added combined server-side filtering (`state`, `kind`, `favorite`, `folder`, `search`), sorting (`-updated_at`, `updated_at`, `-created_at`, `created_at`, `title`, `-title`, `kind`), and consistent project statistics in `/api/dashboard/summary/` and `/api/projects/`.
+  - **Frontend (`frontend/src/features/dashboard/` & `frontend/src/app/App.tsx`):**
+    - Built `DashboardPage.tsx` with the 8-item ordered sidebar (desktop collapse/expand, mobile drawer, active route highlighting, cache-clearing logout), header (page title, debounced project search, notifications popover with unread badge and mark-as-read / mark-all-as-read, user avatar and account menu), welcome banner, 5 owner-scoped statistics cards, quick actions, recent projects with state tabs, recent activity, 7-section Career Profile Vault completion, and document storage card.
+    - Built `NewProjectDialog.tsx` shared between Dashboard and Your Projects with honest unavailable states while document editors (Modules 03–05) are pending.
+    - Built `ProjectsWorkspace.tsx` for `/dashboard/projects` and `/dashboard/deleted-files` with project statistics cards, hierarchical folder tree (create folder, create subfolder, rename, cycle-safe move, delete, folder search, unfiled filter), URL-synced search/type/favorite/archive filters, 5 sort modes, List (table) and Grid (cards with document-type placeholders) view toggle, multi-selection with bulk actions and confirmation dialogs, and individual project actions (`Rename`, `Duplicate`, `Favorite`, `Move to folder`, `Archive/Unarchive`, `Version History` status, `Share` status, `Soft Delete`, and `Restore`).
+    - Added responsive styling in `dashboard.css` matching the `#0B1F3A` / `#EAF4FF` / `#3B82F6` / `#111827` / `#FFFFFF` palette and typography scale.
+  - **Verification:**
+    - Django system check and `makemigrations --check --dry-run`: 0 issues, no migration drift.
+    - PostgreSQL-backed Django test suite (`accounts` + `workspace`): **23/23 passed**.
+    - Frontend Vitest component/integration suite: **15/15 passed across 5 test files**.
+    - TypeScript check (`tsc --noEmit`) and Vite production build (`npm.cmd run build`): **passed**.
+- **Modified files:**
+  - `backend/workspace/models.py`
+  - `backend/workspace/migrations/0001_initial.py`
+  - `backend/workspace/serializers.py`
+  - `backend/workspace/services.py`
+  - `backend/workspace/views.py`
+  - `backend/workspace/urls.py`
+  - `backend/workspace/tests.py`
+  - `frontend/src/app/App.tsx`
+  - `frontend/src/features/dashboard/data.ts`
+  - `frontend/src/features/dashboard/NewProjectDialog.tsx`
+  - `frontend/src/features/dashboard/ProjectsWorkspace.tsx`
+  - `frontend/src/features/dashboard/DashboardPage.tsx`
+  - `frontend/src/features/dashboard/dashboard.css`
+  - `frontend/src/features/dashboard/DashboardPage.test.tsx`
+  - `frontend/e2e/auth.spec.ts`
+  - `frontend/e2e/dashboard.spec.ts`
+  - `PROGRESS.md`
+- **Current task:**
+  - Dashboard (`/dashboard`) and Project Management (`/dashboard/projects` and `/dashboard/deleted-files`) core workspace functionality and PostgreSQL APIs are implemented and verified.
+- **Remaining tasks & deferred cross-module dependencies:**
+  - Modules 03 (Advanced CV Builder), 04 (CV Templates Studio), 05 (Cover Letter Builder), and 06 (full User Profile & Career Profile Vault editor, permanent deletion in Deleted Files) remain pending; editor launch, template creation, interactive version restoration, and capability-token sharing entry points remain honestly disabled until those destination modules are implemented.
+
 ### 2026-11-15 — Registration database initialization fixed and verified
 
 - Registration POST returned 500 because `accounts_authratebucket` did not exist. All Django migrations were unapplied in the configured `advanced_cv_studio` database. The earlier button/config checks had not exercised account creation.

@@ -11,9 +11,9 @@ test('registers, persists a session after refresh, logs out, and signs in', asyn
   await page.getByRole('checkbox', { name: /I agree/ }).check();
   await page.getByRole('button', { name: 'Create Account', exact: true }).click();
   await expect(page).toHaveURL('/dashboard');
-  await expect(page.getByRole('heading', { name: /Welcome, Alex/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Welcome( back)?, Alex/ })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: /Welcome, Alex/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Welcome( back)?, Alex/ })).toBeVisible();
   await page.getByRole('button', { name: 'Logout', exact: true }).click();
   await expect(page).toHaveURL('/login');
   await page.goto('/dashboard');
