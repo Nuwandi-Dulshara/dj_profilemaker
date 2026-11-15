@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Copy, Database, FileText, Link2, Mail, Sparkles } from 'lucide-react';
+import { Link, Route, Routes, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowRight, CheckCircle2, Copy, Database, FileText, History, Link2, Mail, Printer, Sparkles, X } from 'lucide-react';
 import { api, ApiError } from '../../services/api';
 import { QueryState } from '../dashboard/QueryState';
 import { formatDate, useRefreshWorkspace, useWorkspace, type Project, type ProjectsResponse } from '../dashboard/data';
 import { useSession } from '../auth/AuthProvider';
+import { CoverLetterDocument } from '../../document-engine/CoverLetterDocument';
+import { printCoverLetter, buildCoverLetterDocx, downloadBlob } from '../../document-engine/exports';
 import './cover-letter.css';
 
 interface CoverLetterApplicant {
@@ -92,12 +94,12 @@ function defaultContent(seed: Partial<CoverLetterApplicant> = {}): CoverLetterCo
     },
     letter: {
       greeting: 'Dear Hiring Manager,',
-      opening: 'I am excited to apply for the position of {{jobTitle}} at {{company}}. I am particularly drawn to the opportunity because it aligns closely with my experience in delivering measurable results and partnering with cross-functional teams.',
-      experience: 'In my recent work, I have led initiatives that improved delivery quality, streamlined workflows, and supported strong business outcomes across customer, team, and stakeholder priorities.',
-      skills: 'My background includes project leadership, stakeholder communication, process improvement, and hands-on execution in fast-paced environments where clear priorities and reliable delivery matter.',
-      company: 'I admire how {{company}} focuses on {{department}} and professional growth, and I would welcome the opportunity to contribute to that mission.',
-      value: 'I would bring a practical, collaborative approach, clear communication, and a strong commitment to solving meaningful problems while supporting team goals and customer outcomes.',
-      closing: 'Thank you for your time and consideration. I would welcome the opportunity to discuss how my experience and approach could support {{company}}.',
+      opening: '',
+      experience: '',
+      skills: '',
+      company: '',
+      value: '',
+      closing: '',
       signOff: 'Sincerely,',
       signature: '',
     },
@@ -247,8 +249,26 @@ function CoverLetterNew() {
         name: [user?.first_name, user?.last_name].filter(Boolean).join(' ') || '',
         email: user?.email || '',
       });
-      if (mode === 'cv' && selectedCv) {
-        content.linkedCvId = selectedCv;
+      if (mode === 'cv') {
+        if (!selectedCv) {
+          setError('Please select a CV to import from.');
+          setPending(false);
+          return;
+        }
+        // Validate CV ownership by fetching it
+        try {
+          const cv = await api<Project>(`/projects/${selectedCv}/`);
+          if (cv.kind !== 'advanced_cv' && cv.kind !== 'template_cv') {
+            setError('Selected project is not a CV. Please choose a CV project.');
+            setPending(false);
+            return;
+          }
+          content.linkedCvId = selectedCv;
+        } catch (cvErr) {
+          setError('Unable to access the selected CV. It may not exist or you may not have permission.');
+          setPending(false);
+          return;
+        }
       }
       const project = await api<Project>('/projects/', {
         method: 'POST',
@@ -305,6 +325,7 @@ function CoverLetterNew() {
 function CoverLetterEditor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const [mode, setMode] = useState<'guided' | 'visual' | 'code'>('guided');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [error, setError] = useState('');
@@ -315,6 +336,7 @@ function CoverLetterEditor() {
   const saving = useRef(false);
   const [conflict, setConflict] = useState(false);
   const [actionPending, setActionPending] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
   const refresh = useRefreshWorkspace();
 
   const fingerprint = (value: CoverLetterDocument) => JSON.stringify([value.content, value.design]);
@@ -387,6 +409,42 @@ function CoverLetterEditor() {
     return () => window.removeEventListener('beforeunload', warn);
   }, []);
 
+  useEffect(() => {
+    if (navigationType === 'POP' && latest.current && fingerprint(latest.current) !== savedContent.current) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to leave?');
+      if (!confirmed) {
+        navigate(`/dashboard/cover-letters/${projectId}`, { replace: true });
+      }
+    }
+  }, [navigationType, projectId, navigate]);
+
+  async function importProfile() {
+    if (!doc || actionPending) return;
+    setActionPending(true);
+    setError('');
+    try {
+      const profile = await api<{ personal: Record<string, string>; summary: string }>('/career-profile/');
+      if (!await saveDocument()) return;
+      setDocState({
+        ...doc,
+        content: {
+          ...doc.content,
+          applicant: {
+            ...doc.content.applicant,
+            name: profile.personal.name || doc.content.applicant.name,
+            email: profile.personal.email || doc.content.applicant.email,
+            phone: profile.personal.phone || doc.content.applicant.phone,
+            location: profile.personal.location || doc.content.applicant.location,
+          },
+        },
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setActionPending(false);
+    }
+  }
+
   async function duplicateProject() {
     if (!projectId || actionPending) return;
     setActionPending(true);
@@ -415,6 +473,22 @@ function CoverLetterEditor() {
     }
   }
 
+  async function restoreVersion(versionId: string) {
+    if (!projectId || actionPending) return;
+    setActionPending(true);
+    setError('');
+    try {
+      if (!await saveDocument()) return;
+      await api(`/projects/${projectId}/versions/${versionId}/restore/`, { method: 'POST' });
+      await refresh();
+      setShowVersions(false);
+      window.location.reload();
+    } catch (err) {
+      setError((err as Error).message);
+      setActionPending(false);
+    }
+  }
+
   async function downloadText() {
     if (!doc) return;
     const blob = new Blob([buildPlainText(doc.content)], { type: 'text/plain;charset=utf-8' });
@@ -424,6 +498,26 @@ function CoverLetterEditor() {
     a.download = `${(doc.project.title || 'cover-letter').replace(/\s+/g, '-').toLowerCase()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportPdf() {
+    if (!doc) return;
+    try {
+      await printCoverLetter({ pageSize: (design.pageSize as 'A4' | 'Letter') || 'A4', margin: (design.margin as number) || 18 });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function exportDocx() {
+    if (!doc) return;
+    try {
+      const buffer = await buildCoverLetterDocx(content, design as any, doc.project.title || 'cover-letter');
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      downloadBlob(blob, `${(doc.project.title || 'cover-letter').replace(/\s+/g, '-').toLowerCase()}.docx`);
+    } catch (err) {
+      setError((err as Error).message);
+    }
   }
 
   function updateField(section: 'applicant' | 'recipient' | 'letter', key: string, value: string) {
@@ -442,6 +536,17 @@ function CoverLetterEditor() {
 
   const previewMarkup = useMemo(() => content.applicant && content.recipient && content.letter ? buildPlainText(content) : '', [content]);
 
+  function navigateWithCheck(to: string) {
+    if (latest.current && fingerprint(latest.current) !== savedContent.current) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to leave?');
+      if (confirmed) {
+        navigate(to);
+      }
+    } else {
+      navigate(to);
+    }
+  }
+
   if (!docState) return <QueryState pending={query.isPending} error={query.error} retry={query.refetch}><p>Loading cover letter…</p></QueryState>;
   if (docState.project.kind !== 'cover_letter') return <p role="alert">This project is not a cover letter. Open it from Your Projects.</p>;
   if (!content.applicant || !content.recipient || !content.letter) return <p role="alert">This cover letter has an unsupported content format. Its saved content has not been changed.</p>;
@@ -450,7 +555,7 @@ function CoverLetterEditor() {
     <div className="cover-letter-editor">
       <header className="cover-letter-header">
         <div className="cover-letter-header-left">
-          <Link className="dash-link" to="/dashboard/cover-letters">← Back to cover letters</Link>
+          <button type="button" className="dash-link" onClick={() => navigateWithCheck('/dashboard/cover-letters')}>← Back to cover letters</button>
           <div>
             <h1>{doc?.project.title || 'Untitled cover letter'}</h1>
             <small>{status === 'saved' ? 'All changes saved' : status === 'saving' ? 'Saving…' : status === 'error' ? 'Save failed' : 'Unsaved changes'}</small>
@@ -459,7 +564,10 @@ function CoverLetterEditor() {
         <div className="cover-letter-header-actions">
           <button type="button" className="dash-secondary" disabled={!doc || status === 'saving' || conflict || actionPending} onClick={() => void saveDocument()}>Save</button>
           <button type="button" className="dash-secondary" disabled={!doc || status === 'saving' || conflict || actionPending} onClick={() => void saveVersion()}>Save Version</button>
+          <button type="button" className="dash-secondary" disabled={!doc || status === 'saving' || conflict || actionPending} onClick={() => setShowVersions(true)}><History size={16} /> Versions</button>
           <button type="button" className="dash-secondary" disabled={!doc || status === 'saving' || conflict || actionPending} onClick={() => void duplicateProject()}>Duplicate</button>
+          <button type="button" className="dash-secondary" disabled={!doc || status === 'saving' || conflict || actionPending} onClick={() => void exportPdf()}><Printer size={16} /> PDF</button>
+          <button type="button" className="dash-secondary" disabled={!doc || status === 'saving' || conflict || actionPending} onClick={() => void exportDocx()}>DOCX</button>
           <button type="button" className="button button-primary" onClick={() => void downloadText()}>Download TXT</button>
         </div>
       </header>
@@ -505,7 +613,24 @@ function CoverLetterEditor() {
             <p className="dash-caption">No CV selected. Use the create flow to link one or import from your Career Profile later.</p>
           )}
 
+          <h3>Career Profile</h3>
+          <button type="button" className="dash-secondary" disabled={!doc || status === 'saving' || conflict || actionPending} onClick={() => void importProfile()}>
+            Import from Career Profile
+          </button>
+          <p className="dash-caption">Import your personal details from your Career Profile Vault.</p>
+
           <h3>Design settings</h3>
+          <label>
+            Template
+            <select value={String(design.templateId || 'classic-professional')} onChange={(e) => { if (doc) setDocState({ ...doc, design: { ...doc.design, templateId: e.target.value } }); }}>
+              <option value="classic-professional">Classic Professional</option>
+              <option value="modern-navy">Modern Navy</option>
+              <option value="minimalist">Minimalist</option>
+              <option value="academic">Academic</option>
+              <option value="creative">Creative</option>
+              <option value="matching-cv">Matching CV Design</option>
+            </select>
+          </label>
           <label>
             Font family
             <select value={String(design.fontFamily || 'Georgia')} onChange={(e) => { if (doc) setDocState({ ...doc, design: { ...doc.design, fontFamily: e.target.value } }); }}>
@@ -601,19 +726,7 @@ function CoverLetterEditor() {
 
           {mode === 'visual' && (
             <div className="letter-visual-editor">
-              <div className="visual-toolbar">
-                <button type="button">Bold</button>
-                <button type="button">Italic</button>
-                <button type="button">Bulleted list</button>
-                <button type="button">Align left</button>
-              </div>
-              <textarea rows={18} value={previewMarkup} onChange={(e) => {
-                if (!doc) return;
-                setDocState({
-                  ...doc,
-                  content: { ...content, letter: { ...content.letter, opening: e.target.value, experience: e.target.value, skills: e.target.value } },
-                });
-              }} />
+              <p className="dash-caption">Visual editing is not yet implemented. Use the Guided editor to edit individual sections.</p>
             </div>
           )}
 
@@ -629,39 +742,59 @@ function CoverLetterEditor() {
           <div className="cover-letter-preview-head">
             <h2>Live preview</h2>
             <div className="zoom-group">
-              <button type="button" className="dash-secondary" onClick={() => { if (doc) setDocState({ ...doc, design: { ...doc.design, fontSize: Number((Number(doc.design.fontSize || 11) * 0.9)).toFixed(1) } }); }}>-</button>
+              <button type="button" className="dash-secondary" onClick={() => { if (doc) setDocState({ ...doc, design: { ...doc.design, fontSize: Math.max(8, Math.min(16, (Number(doc.design.fontSize || 11) - 1))) } }); }}>-</button>
               <span>{Math.round(Number(design.fontSize || 11))}pt</span>
-              <button type="button" className="dash-secondary" onClick={() => { if (doc) setDocState({ ...doc, design: { ...doc.design, fontSize: Number((Number(doc.design.fontSize || 11) * 1.1)).toFixed(1) } }); }}>+</button>
+              <button type="button" className="dash-secondary" onClick={() => { if (doc) setDocState({ ...doc, design: { ...doc.design, fontSize: Math.max(8, Math.min(16, (Number(doc.design.fontSize || 11) + 1))) } }); }}>+</button>
             </div>
           </div>
-          <article className="letter-preview" style={{ fontFamily: String(design.fontFamily || 'Georgia'), fontSize: `${Number(design.fontSize || 11)}pt`, lineHeight: Number(design.lineHeight || 1.5), color: String(design.textColor || '#111827') }}>
-            <header className="letter-preview-header">
-              <div>
-                <strong>{content.applicant.name || 'Your Name'}</strong>
-                <span>{content.applicant.email || 'you@example.com'}</span>
-                <span>{content.applicant.phone || 'Phone'}</span>
-                <span>{content.applicant.location || 'Location'}</span>
-              </div>
-            </header>
-            <section className="letter-meta">
-              <span>{content.recipient.company || 'Company name'}</span>
-              <span>{content.recipient.hiringManager || 'Hiring Manager'}</span>
-              <span>{content.recipient.jobTitle || 'Target role'}</span>
-            </section>
-            <div className="letter-body">
-              <p>{content.letter.greeting}</p>
-              <p>{content.letter.opening}</p>
-              <p>{content.letter.experience}</p>
-              <p>{content.letter.skills}</p>
-              <p>{content.letter.company}</p>
-              <p>{content.letter.value}</p>
-              <p>{content.letter.closing}</p>
-              <p>{content.letter.signOff}</p>
-              <p>{content.letter.signature || content.applicant.name || 'Your signature'}</p>
-            </div>
-          </article>
+          <div className="letter-preview-container">
+            <CoverLetterDocument document={{ content, design: design as any }} zoom={1} />
+          </div>
         </aside>
       </fieldset>
+
+      {showVersions && <VersionHistoryModal projectId={projectId} onClose={() => setShowVersions(false)} onRestore={restoreVersion} />}
+    </div>
+  );
+}
+
+interface VersionHistoryModalProps {
+  projectId?: string;
+  onClose: () => void;
+  onRestore: (versionId: string) => void;
+}
+
+function VersionHistoryModal({ projectId, onClose, onRestore }: VersionHistoryModalProps) {
+  const [pending, setPending] = useState(false);
+  const versions = useWorkspace<{ id: string; name: string; created_at: string }[]>(`versions-${projectId}`, projectId ? `/projects/${projectId}/versions/` : '/');
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2><History size={18} /> Version History</h2>
+          <button type="button" onClick={onClose}><X size={20} /></button>
+        </div>
+        <QueryState pending={versions.isPending} error={versions.error} retry={versions.refetch}>
+          {versions.data?.length === 0 ? (
+            <p className="dash-caption">No versions saved yet.</p>
+          ) : (
+            <div className="version-list">
+              {versions.data?.map((v) => (
+                <div key={v.id} className="version-item">
+                  <div>
+                    <strong>{v.name}</strong>
+                    <time>{formatDate(v.created_at)}</time>
+                  </div>
+                  <button type="button" className="dash-secondary" disabled={pending} onClick={() => { setPending(true); onRestore(v.id); }}>
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </QueryState>
+      </div>
     </div>
   );
 }
