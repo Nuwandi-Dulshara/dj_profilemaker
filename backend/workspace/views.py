@@ -56,7 +56,7 @@ class SummaryView(PrivateView):
             'counts': counts,
             'project_stats': project_stats,
             'profile': career_summary(request.user),
-            'workflows': {'advanced_cv': False, 'template_cv': False, 'cover_letter': False, 'profile': False},
+            'workflows': {'advanced_cv': True, 'template_cv': True, 'cover_letter': True, 'profile': False},
         })
 
 
@@ -117,6 +117,10 @@ class RecentProjectsView(PrivateView):
         return self.page(projects, ProjectSerializer, request, stats=project_stats)
 
     def post(self, request):
+        if request.data.get('kind') == 'template_cv':
+            from .templates import create_from_template
+            project, created = create_from_template(request.user, request.data)
+            return Response(ProjectSerializer(project).data, status=201 if created else 200)
         project = create_project(request.user, request.data)
         return Response(ProjectSerializer(project).data, status=201)
 

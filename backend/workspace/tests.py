@@ -35,7 +35,7 @@ class DashboardTests(TestCase):
         Project.objects.create(owner=self.user, title='Deleted', kind='template_cv', deleted_at=timezone.now())
         data = self.client.get('/api/dashboard/summary/').json()
         self.assertEqual(data['counts'], {'total': 2, 'advanced_cv': 1, 'template_cv': 0, 'cover_letter': 1, 'deleted': 1})
-        self.assertFalse(any(data['workflows'].values()))
+        self.assertEqual(data['workflows'], {'advanced_cv': True, 'template_cv': True, 'cover_letter': True, 'profile': False})
 
     def test_search_pagination_and_state_filters(self):
         for i in range(8):
