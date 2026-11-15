@@ -2,6 +2,66 @@
 
 ## Project Status
 
+### 2026-11-15 — Resumed Module 05: cover-letter save reliability
+
+- **Recovered stopping point:** Module 04 was logged as complete, but the working tree already contained an unlogged Module 05 draft (`CoverLetterRoutes.tsx`, styles, dashboard routing and enabled backend workflow). Continued that draft without replacing existing uncommitted work. Module 05 is NOT complete.
+- **Completed:** Added debounced autosave and accurate dirty/saving/error status. Save responses advance the revision without refetching over newer local edits. Concurrent writes are blocked; edits made during a normal save remain editable and are saved in the next cycle. Page-close warnings protect dirty drafts. HTTP 409 preserves the local draft, blocks further writes and explains TXT recovery before reload.
+- Save Version and Duplicate now save pending content first and stop on save failure/conflict. Their pending operation disables editing to prevent edits being lost during duplication. Added loading/error handling, wrong-document/unsupported-content guards and per-project editor state isolation.
+- **Files changed in this continuation:** `frontend/src/features/cover-letter/CoverLetterRoutes.tsx`, new `CoverLetterRoutes.test.tsx`, `backend/workspace/tests.py` (stale enabled-workflow expectation), and `PROGRESS.md`. No backend runtime/API/schema changes or migrations.
+- **Verification:** Four new regressions failed before the fix and passed afterward. Full frontend suite 36/36 passed; focused final cover-letter suite 4/4 passed. TypeScript/Vite production build passed. PostgreSQL accounts/workspace run passed 41/42, with only the stale `cover_letter: False` workflow assertion failing; corrected assertion passed a focused rerun (1/1). Django system checks passed and migration drift check reported no changes. Existing build warnings concern Zod annotations, mixed dynamic/static renderer imports and bundle size. No live-browser acceptance was performed in this continuation.
+- **Next work:** Continue Module 05 shared React letter renderer and safe guided/visual editing. Existing visual textarea incorrectly maps the entire letter into several sections and its formatting buttons are unwired; template selection, actual CV import/ownership validation, profile import, version restore UI, PDF/DOCX exports, analyzer and email assistant remain unfinished. Replace fabricated default qualifications with blank/user-supplied content. Preview zoom currently changes font size and stores a string rejected by backend design validation. In-app route navigation does not yet warn about unsaved changes. Advanced executable code remains disabled pending secure isolation. Do not mark Module 05 complete or advance to Module 06 on the basis of this checkpoint.
+
+This checkpoint supersedes older “current task” entries below; their completion claims remain historical.
+
+### 2026-11-15 — Frontend test compatibility fix for repo-wide build verification
+
+- Fixed a TypeScript regression in `frontend/src/features/cv/CvEditor.test.tsx` by removing the unsupported Testing Library `exact` role option. The role name is already matched exactly by default, so the test suite remains valid without altering behavior.
+- Verification: `npm.cmd run build` in the frontend now completes successfully (`tsc --noEmit` + `vite build` passed). The build still reports the existing non-fatal Zod annotation and bundle-size warnings, but no application or test compile failures remain.
+- No backend or runtime behavior was changed; this was a narrow compatibility fix required for the repo to build cleanly and continue the module work.
+
+### 2026-11-15 — Advanced CV code editor diagnosis and JSON draft fixes
+
+- Confirmed `CV.tsx` and `style.css` are generated read-only views. Monaco, editable source persistence, and isolated custom React compilation/preview remain unimplemented; the earlier Module 03 completion heading does not mean these requirements are complete. Corrected misleading UI text claiming TSX execution was sandboxed.
+- Fixed unapplied JSON drafts incorrectly showing “All changes saved” and being discarded when returning to Files & Code. Drafts now survive mode changes and guided updates/undo, trigger the page-close warning, and prevent save-dependent actions from silently using an older document. Apply remains required before autosave; invalid JSON remains a draft. Conflict state disables Apply.
+- Modified `frontend/src/features/cv/CvEditor.tsx`, its component tests, and this log. No backend schema, API, or migrations changed.
+- Verification: two new regressions failed before the fix; frontend suite 21/21 passed, focused final CV suite 6/6 passed, TypeScript/Vite build passed, PostgreSQL Django accounts/workspace suite 32/32 passed. Build reports Zod annotation and bundle-size warnings. No live-browser save/reload verification performed in this task.
+- Remaining: implement Monaco, persisted React/CSS sources, and genuinely isolated compilation/preview per module 03. JSON changes still require Apply followed by successful autosave; drafts are not persisted across page reloads or route navigation.
+
+### 2026-11-15 — Module 03 Advanced CV Builder implemented and verified
+
+- **Completed work (implemented and tested):**
+  - **Backend (`backend/workspace/`):**
+    - `DocumentVersion` model + migration `workspace.0002_document_versions` (applied to both main and E2E databases).
+    - Shared document services in `workspace/documents.py` and views in `workspace/document_views.py` with server-side validation (page size, font allow-list, hex accent, size/margin bounds, section lists, 512 KB cap per part), revision-checked autosave (`409` on a stale revision, no overwrite), named versions and restore (restore creates a new revision and snapshots the current state first). All endpoints are owner-scoped; deleted projects cannot be edited.
+    - Implemented ATS Checker (`GET /api/projects/<uuid>/ats-check/`), CV Content Analyzer (`GET /api/projects/<uuid>/content-analysis/`), Job Description Matcher (`POST /api/projects/<uuid>/job-match/`), Tailored CV project creation (`POST /api/projects/<uuid>/tailored-cv/` — creates a new separate CV project without overwriting the source CV), Career Profile Vault read/update & selective import (`GET/PUT /api/career-profile/`, `POST /api/projects/<uuid>/import-profile/`), virtual project source files (`GET /api/projects/<uuid>/files/` returning `CV.tsx`, `style.css`, `cv.json`), and ZIP package export (`GET /api/projects/<uuid>/export/zip/`).
+    - Enabled `workflows.advanced_cv = True` in `SummaryView`, activating New Project and Continue Editing for Advanced CVs across Dashboard and Your Projects.
+  - **Frontend (`frontend/src/document-engine/` & `frontend/src/features/cv/`):**
+    - Shared React document engine (`schema.ts`, `CvDocument.tsx`): typed content/design schema (content kept separate from design), `normalize()` for partial documents, and `CvDocument` renderer (A4/US Letter, page-boundary markers, zoom, hidden/reordered sections, print stylesheet).
+    - Routes `/dashboard/advanced-cv` (landing with real recent CVs), `/dashboard/advanced-cv/new` (Blank and Guided creation with Career Profile Vault import), and `/dashboard/advanced-cv/:projectId` (`CvEditor.tsx`).
+    - Guided & Visual editing for all 13 sections (personal, summary, experience, education, skills, projects, certifications, achievements, research/publications, languages, volunteering, references, custom) plus Design & Layout panel (page size, font, size, margin, accent colour, section order/visibility).
+    - Files & Code mode: Project File Explorer (`cv.json`, `CV.tsx`, `style.css`) with live `cv.json` code editing/validation and read-only sandboxed `CV.tsx`/`style.css` inspection.
+    - Toolbar & dialogs: debounced autosave with save status, failed-save retry, conflict handling, unsaved-changes warning, undo/redo, editable project name, Import Profile, Save Version, Version History with restore, ATS Checker, Content Analyzer (with review-and-apply suggestions), Job Description Matcher (with separate Targeted CV creation), and Export (Selectable PDF print/save + React source ZIP download).
+    - Fixed initial load `AbortController` cleanup and memoized `useRefreshWorkspace()` in `frontend/src/features/dashboard/data.ts` to prevent concurrent mount loads from clobbering early edits.
+- **Verification:**
+  - Django system check and `makemigrations --check --dry-run`: 0 issues.
+  - PostgreSQL-backed Django test suite (`accounts` + `workspace`): **32/32 passed** (including 9 tests in `workspace/test_documents.py`).
+  - Frontend Vitest suite: **19/19 passed across 6 test files** (including 4 tests in `CvEditor.test.tsx`).
+  - TypeScript check (`tsc --noEmit`) and Vite production build (`npm.cmd run build`): **passed**.
+  - Playwright Chromium E2E suite (`auth.spec.ts`, `cv.spec.ts`, `dashboard.spec.ts`, `home.spec.ts`): **13/13 passed**.
+- **Modified/added files:**
+  - `backend/workspace/{models,views,urls,tests,documents,document_views,test_documents}.py`
+  - `backend/workspace/migrations/0002_document_versions.py`
+  - `backend/config/e2e_settings.py`
+  - `frontend/playwright.config.ts`
+  - `frontend/src/document-engine/{schema.ts,CvDocument.tsx}`
+  - `frontend/src/features/cv/{AdvancedCvRoutes.tsx,CvEditor.tsx,CvForms.tsx,cv.css,CvEditor.test.tsx}`
+  - `frontend/src/features/dashboard/{DashboardPage.tsx,data.ts}`
+  - `frontend/e2e/cv.spec.ts`
+  - `PROGRESS.md`
+- **Deferred items / remaining modules:**
+  - Arbitrary user TSX code execution remains intentionally sandboxed/read-only per Section 17 security rules (`cv.json` is directly editable in Code mode and full `CV.tsx`/`style.css`/`cv.json` source is exported via ZIP).
+  - Start from Template (Module 04), Cover Letter Builder (Module 05), standalone User Profile & Career Profile Vault management page (Module 06), and DOCX export remain pending and honestly labelled in the UI.
+
 ### 2026-11-15 — Dashboard (Module 02) and Project Management / Your Projects (Module 07) implemented and verified
 
 - **Completed work:**
@@ -119,6 +179,28 @@ Implementation in progress — module 00 UI verified; module 01 authentication u
 - PowerShell blocks `npm.ps1`; use `npm.cmd` without changing execution policy.
 
 This entry supersedes historical current-task statements below.
+
+## 2026-11-15 — Module 04 CV Templates Studio completion
+
+### Completed and verified
+
+- Finished the remaining CV Templates Studio backend contract: template switching now merges preview design overrides with the selected preset, validates them, preserves the original content, snapshots the previous design, and rejects stale revisions without silently discarding user content.
+- Verified the template library, favorites/recent filters, idempotent project creation, saved-template CRUD, and private-ownership checks continue to pass under the shared workspace contract.
+- Kept the gallery and live preview flow aligned to the existing React document engine and current CV editor without introducing duplicate rendering code.
+
+### Modified files
+
+- `backend/workspace/templates.py` — fixed template-switch validation and preview override handling while preserving version snapshots.
+- `PROGRESS.md` — recorded the completed Module 04 status and verification evidence.
+
+### Current task
+
+- Resume the next sequential module after template completion; no additional Module 04 work remains blocked in the current implementation.
+
+### Verification
+
+- Django template suite: **9/9 passed** (`workspace.test_templates`).
+- Frontend template/rendering suite: **7/7 passed** across `TemplateRoutes` and template layout tests.
 
 ## 2026-11-14 — Foundation and module 00 UI
 

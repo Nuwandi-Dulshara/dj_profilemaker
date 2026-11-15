@@ -26,6 +26,9 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { AdvancedCvRoutes } from '../cv/AdvancedCvRoutes';
+import { CoverLetterRoutes } from '../cover-letter/CoverLetterRoutes';
+import { TemplateRoutes } from '../templates/TemplateRoutes';
 import { useSession } from '../auth/AuthProvider';
 import {
   bytes,
@@ -84,11 +87,10 @@ export function DashboardPage() {
   const pathname = location.pathname.replace(/\/+$/, '') || '/dashboard';
   const isProjectsRoute = pathname.endsWith('/projects');
   const isDeletedRoute = pathname.endsWith('/deleted-files');
-  const isDeferredModuleRoute =
-    pathname.includes('/advanced-cv') ||
-    pathname.includes('/cv-templates') ||
-    pathname.includes('/cover-letters') ||
-    pathname.includes('/profile');
+  const isDeferredModuleRoute = pathname.includes('/profile');
+  const isTemplatesRoute = pathname.includes('/cv-templates');
+  const isAdvancedCvRoute = pathname.includes('/advanced-cv');
+  const isCoverLetterRoute = pathname.includes('/cover-letters');
 
   useEffect(() => {
     setMobileDrawerOpen(false);
@@ -176,7 +178,7 @@ export function DashboardPage() {
     : isDeletedRoute
     ? 'Deleted Files'
     : pathname.includes('/advanced-cv')
-    ? 'Advanced CV Builder'
+    ? (pathname.endsWith('/advanced-cv') ? 'Advanced CV Builder' : 'Advanced CV')
     : pathname.includes('/cv-templates')
     ? 'CV Templates'
     : pathname.includes('/cover-letters')
@@ -443,6 +445,12 @@ export function DashboardPage() {
             <ProjectsWorkspace mode="projects" workflows={summary.data?.workflows} />
           ) : isDeletedRoute ? (
             <ProjectsWorkspace mode="deleted" workflows={summary.data?.workflows} />
+          ) : isTemplatesRoute ? (
+            <TemplateRoutes />
+          ) : isAdvancedCvRoute ? (
+            <AdvancedCvRoutes />
+          ) : isCoverLetterRoute ? (
+            <CoverLetterRoutes />
           ) : isDeferredModuleRoute ? (
             <section className="dash-panel" style={{ maxWidth: '720px', margin: '24px auto' }}>
               <span className="eyebrow">WORKSPACE MODULE STATUS</span>
@@ -796,3 +804,4 @@ export function DashboardPage() {
     </div>
   );
 }
+

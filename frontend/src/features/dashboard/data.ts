@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 
@@ -18,6 +19,6 @@ export function getProjectEditorPath(project: Pick<Project, 'id' | 'kind'>) {
 export function useWorkspace<T>(key: string, path: string) {
   return useQuery({ queryKey: ['workspace', key, path], queryFn: ({ signal }) => api<T>(path, { signal }), retry: false, staleTime: 15000 });
 }
-export function useRefreshWorkspace() { const client = useQueryClient(); return () => client.invalidateQueries({ queryKey: ['workspace'] }); }
+export function useRefreshWorkspace() { const client = useQueryClient(); return useCallback(() => client.invalidateQueries({ queryKey: ['workspace'] }), [client]); }
 export const formatDate = (date: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date));
 export function bytes(value: number) { return value < 1024 ? `${value} B` : value < 1024 ** 2 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1024 ** 2).toFixed(1)} MB`; }

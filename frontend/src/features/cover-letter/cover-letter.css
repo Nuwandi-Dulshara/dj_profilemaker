@@ -1,0 +1,226 @@
+.cover-letter-workspace,
+.cover-letter-editor {
+  display: block;
+}
+
+.cover-letter-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1.3fr) minmax(320px, 420px);
+  gap: 20px;
+  align-items: start;
+  margin-top: 18px;
+}
+
+.cover-letter-panel {
+  padding: 20px;
+}
+
+.left-panel,
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cover-letter-panel label,
+.cover-letter-panel input,
+.cover-letter-panel select,
+.cover-letter-panel textarea,
+.cover-letter-main-panel input,
+.cover-letter-main-panel textarea,
+.cover-letter-main-panel select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cover-letter-panel label,
+.cover-letter-main-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.cover-letter-main-panel {
+  min-height: 500px;
+}
+
+.segment-toggle {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  background: #eef4ff;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.segment-button {
+  border: none;
+  background: transparent;
+  color: var(--navy);
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.segment-button.is-active {
+  background: var(--navy);
+  color: #fff;
+}
+
+.letter-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.letter-form-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+.cover-letter-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.cover-letter-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cover-letter-header-left h1 {
+  margin: 0;
+  color: var(--navy);
+  font-size: clamp(1.6rem, 2vw, 2.1rem);
+}
+
+.cover-letter-header-left small {
+  color: var(--muted);
+}
+
+.cover-letter-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.linked-cv-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: 10px;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.cover-letter-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.zoom-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.letter-preview {
+  background: #fff;
+  border: 1px solid rgba(11, 31, 58, 0.12);
+  border-radius: 16px;
+  padding: 26px;
+  min-height: 640px;
+  box-shadow: 0 10px 22px rgba(14, 30, 55, 0.08);
+}
+
+.letter-preview-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.12);
+  padding-bottom: 12px;
+}
+
+.letter-preview-header div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.letter-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.letter-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.letter-body p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.visual-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0 16px;
+}
+
+.visual-toolbar button {
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #fff;
+  color: var(--navy);
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.code-editor-panel textarea,
+.letter-visual-editor textarea,
+.cover-letter-panel textarea,
+.cover-letter-panel input,
+.cover-letter-main-panel textarea,
+.cover-letter-main-panel input,
+.cover-letter-main-panel select,
+.cover-letter-panel select {
+  border: 1px solid rgba(11, 31, 58, 0.14);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  font: inherit;
+}
+
+@media (max-width: 1100px) {
+  .cover-letter-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .cover-letter-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .letter-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
