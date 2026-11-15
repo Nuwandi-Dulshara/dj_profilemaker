@@ -13,7 +13,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.cache import never_cache
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import EmailSerializer, LoginSerializer, RegisterSerializer, ResetSerializer, UserSerializer
@@ -31,6 +31,12 @@ def policies_available():
 @method_decorator(never_cache, name='dispatch')
 class PublicAuthView(APIView):
     permission_classes = [AllowAny]
+
+
+@method_decorator(csrf_protect, name='dispatch')
+@method_decorator(never_cache, name='dispatch')
+class PrivateView(APIView):
+    permission_classes = [IsAuthenticated]
 
 
 class CsrfView(PublicAuthView):
@@ -133,3 +139,98 @@ class PasswordResetConfirmView(PublicAuthView):
         except (ValueError, UnicodeDecodeError, OverflowError, User.DoesNotExist):
             return Response({'detail': 'This reset link is invalid or has expired.'}, status=400)
         return Response({'detail': 'Password updated. Sign in with your new password.'})
+
+
+class ProfileView(PrivateView):
+    def get(self, request):
+        user = request.user
+        return Response({
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            'phone': getattr(user, 'phone', ''),
+            'location': getattr(user, 'location', ''),
+            'professional_title': getattr(user, 'professional_title', ''),
+            'bio': getattr(user, 'bio', ''),
+            'linkedin': getattr(user, 'linkedin', ''),
+            'github': getattr(user, 'github', ''),
+            'portfolio': getattr(user, 'portfolio', ''),
+        })
+
+    def patch(self, request):
+        user = request.user
+        data = request.data
+        user.first_name = data.get('first_name', user.first_name)
+        user.last_name = data.get('last_name', user.last_name)
+        if hasattr(user, 'phone'):
+            user.phone = data.get('phone', user.phone)
+        if hasattr(user, 'location'):
+            user.location = data.get('location', user.location)
+        if hasattr(user, 'professional_title'):
+            user.professional_title = data.get('professional_title', user.professional_title)
+        if hasattr(user, 'bio'):
+            user.bio = data.get('bio', user.bio)
+        if hasattr(user, 'linkedin'):
+            user.linkedin = data.get('linkedin', user.linkedin)
+        if hasattr(user, 'github'):
+            user.github = data.get('github', user.github)
+        if hasattr(user, 'portfolio'):
+            user.portfolio = data.get('portfolio', user.portfolio)
+        user.save()
+        return Response(self.get(request).data)
+
+
+class ChangePasswordView(PrivateView):
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not current_password or not new_password:
+            return Response({'detail': 'Current password and new password are required.'}, status=400)
+        
+        if not user.check_password(current_password):
+            return Response({'detail': 'Current password is incorrect.'}, status=400)
+        
+        if len(new_password) < 8:
+            return Response({'detail': 'Password must be at least 8 characters.'}, status=400)
+        
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+        return Response({'detail': 'Password changed successfully.'})
+
+
+class PreferencesView(PrivateView):
+    def get(self, request):
+        from .models import UserPreferences
+        prefs, created = UserPreferences.objects.get_or_create(owner=request.user)
+        return Response({
+            'theme': prefs.theme,
+            'cv_page_size': prefs.cv_page_size,
+            'region': prefs.region,
+            'date_format': prefs.date_format,
+            'editor_font_size': prefs.editor_font_size,
+            'notifications': prefs.notifications,
+        })
+
+    def patch(self, request):
+        from .models import UserPreferences
+        prefs, created = UserPreferences.objects.get_or_create(owner=request.user)
+        data = request.data
+        
+        if 'theme' in data:
+            prefs.theme = data['theme']
+        if 'cv_page_size' in data:
+            prefs.cv_page_size = data['cv_page_size']
+        if 'region' in data:
+            prefs.region = data['region']
+        if 'date_format' in data:
+            prefs.date_format = data['date_format']
+        if 'editor_font_size' in data:
+            prefs.editor_font_size = data['editor_font_size']
+        if 'notifications' in data:
+            prefs.notifications = data['notifications']
+        
+        prefs.save()
+        return Response(self.get(request).data)
+

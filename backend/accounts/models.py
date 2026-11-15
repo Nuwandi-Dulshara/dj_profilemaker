@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.db.models.functions import Lower
@@ -39,3 +40,18 @@ class AuthRateBucket(models.Model):
     key = models.CharField(max_length=64, unique=True)
     count = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField(db_index=True)
+
+
+class UserPreferences(models.Model):
+    owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    theme = models.CharField(max_length=20, default='light')
+    cv_page_size = models.CharField(max_length=20, default='A4')
+    region = models.CharField(max_length=10, default='US')
+    date_format = models.CharField(max_length=20, default='MM/DD/YYYY')
+    editor_font_size = models.PositiveIntegerField(default=14)
+    notifications = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = 'User preferences'

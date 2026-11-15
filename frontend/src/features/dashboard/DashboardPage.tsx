@@ -29,6 +29,7 @@ import { api } from '../../services/api';
 import { AdvancedCvRoutes } from '../cv/AdvancedCvRoutes';
 import { CoverLetterRoutes } from '../cover-letter/CoverLetterRoutes';
 import { TemplateRoutes } from '../templates/TemplateRoutes';
+import { ProfilePage } from '../profile/ProfilePage';
 import { useSession } from '../auth/AuthProvider';
 import {
   bytes,
@@ -452,26 +453,8 @@ export function DashboardPage() {
           ) : isCoverLetterRoute ? (
             <CoverLetterRoutes />
           ) : isDeferredModuleRoute ? (
-            <section className="dash-panel" style={{ maxWidth: '720px', margin: '24px auto' }}>
-              <span className="eyebrow">WORKSPACE MODULE STATUS</span>
-              <h1 style={{ fontSize: '28px', color: 'var(--navy)', marginBlock: '12px' }}>
-                {currentPageTitle}
-              </h1>
-              <p style={{ color: 'var(--muted)', marginBottom: '20px' }}>
-                This workspace module is queued in the sequential delivery plan and is not enabled
-                yet. Your projects, folders, and recovery tools are available now in the Dashboard
-                and Your Projects pages.
-              </p>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <Link className="button button-primary" to="/dashboard">
-                  Back to Dashboard
-                </Link>
-                <Link className="dash-secondary" to="/dashboard/projects">
-                  Open Your Projects
-                </Link>
-              </div>
-            </section>
-          ) : (
+            <ProfilePage />
+          ) : pathname === '/dashboard' ? (
             /* DASHBOARD OVERVIEW (/dashboard) */
             <div className="dash-overview">
               {/* WELCOME BANNER */}
@@ -798,6 +781,26 @@ export function DashboardPage() {
                 />
               )}
             </div>
+          ) : (
+            <section className="dash-panel" style={{ maxWidth: '720px', margin: '24px auto' }}>
+              <span className="eyebrow">WORKSPACE MODULE STATUS</span>
+              <h1 style={{ fontSize: '28px', color: 'var(--navy)', marginBlock: '12px' }}>
+                {currentPageTitle}
+              </h1>
+              <p style={{ color: 'var(--muted)', marginBottom: '20px' }}>
+                This workspace module is queued in the sequential delivery plan and is not enabled
+                yet. Your projects, folders, and recovery tools are available now in the Dashboard
+                and Your Projects pages.
+              </p>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <Link className="button button-primary" to="/dashboard">
+                  Back to Dashboard
+                </Link>
+                <Link className="dash-secondary" to="/dashboard/projects">
+                  Open Your Projects
+                </Link>
+              </div>
+            </section>
           )}
         </main>
       </div>
