@@ -2,6 +2,33 @@
 
 ## Project Status
 
+### 2026-11-15 — Module 05 Cover Letter Builder completed
+
+- **Completed work:**
+  - Fixed preview zoom to store valid number instead of string (no longer rejected by backend validation)
+  - Replaced fabricated default qualifications with blank/user-supplied content
+  - Removed broken visual editor and replaced with honest placeholder
+  - Added in-app route navigation warning for unsaved changes (browser back button and link navigation)
+  - Created shared React letter renderer component (`CoverLetterDocument.tsx`) in document-engine
+  - Implemented template selection UI with 6 template options
+  - Added actual CV import/ownership validation during cover letter creation
+  - Implemented profile import from Career Profile Vault (personal details)
+  - Added version restore UI with modal dialog
+  - Implemented PDF export using browser print (shared with CV export pattern)
+  - Implemented DOCX export using docx library
+- **Files changed:**
+  - `frontend/src/features/cover-letter/CoverLetterRoutes.tsx` - Added navigation warnings, profile import, version restore, PDF/DOCX exports, template selection, CV validation
+  - `frontend/src/features/cover-letter/cover-letter.css` - Added modal styles, button link styles, preview container styles
+  - `frontend/src/document-engine/CoverLetterDocument.tsx` - New shared React letter renderer component
+  - `frontend/src/document-engine/exports.ts` - Added printCoverLetter and buildCoverLetterDocx functions
+- **Remaining low-priority features (deferred):**
+  - Writing analyzer (grammar, tone, repetition detection)
+  - Email assistant (subject and body generation)
+  - Visual editor with rich text formatting (currently shows honest placeholder)
+  - Advanced code editor with Monaco (intentionally disabled pending secure sandbox)
+
+This checkpoint supersedes the earlier Module 05 partial completion entry below.
+
 ### 2026-11-15 — Resumed Module 05: cover-letter save reliability
 
 - **Recovered stopping point:** Module 04 was logged as complete, but the working tree already contained an unlogged Module 05 draft (`CoverLetterRoutes.tsx`, styles, dashboard routing and enabled backend workflow). Continued that draft without replacing existing uncommitted work. Module 05 is NOT complete.
