@@ -153,8 +153,10 @@ class ProjectDetailView(PrivateView):
 
 class ProjectActionView(PrivateView):
     def post(self, request, pk, action):
-        project = change_project(request.user, pk, action)
-        return Response(ProjectSerializer(project).data, status=201 if action == 'duplicate' else 200)
+        result = change_project(request.user, pk, action)
+        if action == 'permanent-delete':
+            return Response(result)
+        return Response(ProjectSerializer(result).data, status=201 if action == 'duplicate' else 200)
 
 
 class ProjectBulkActionsView(PrivateView):

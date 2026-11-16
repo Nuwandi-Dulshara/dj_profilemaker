@@ -39,7 +39,7 @@ import {
 import { NewProjectDialog } from './NewProjectDialog';
 import { QueryState } from './QueryState';
 
-type ProjectModalAction = 'menu' | 'rename' | 'move' | 'delete' | 'versions' | 'share';
+type ProjectModalAction = 'menu' | 'rename' | 'move' | 'delete' | 'versions' | 'share' | 'permanent-delete';
 type FolderModalState =
   | { mode: 'create'; parentId: string }
   | { mode: 'rename'; folder: Folder }
@@ -95,6 +95,7 @@ export function ProjectsWorkspace({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkPermanentDeleteOpen, setBulkPermanentDeleteOpen] = useState(false);
   const [bulkTargetFolder, setBulkTargetFolder] = useState('');
 
   // Individual Project Action Dialog
@@ -213,6 +214,8 @@ export function ProjectsWorkspace({
           ? `“${project.title}” duplicated.`
           : action === 'restore'
           ? `“${project.title}” restored to active projects.`
+          : action === 'permanent-delete'
+          ? `“${project.title}” permanently deleted.`
           : `“${project.title}” updated.`
       );
       await refresh();
@@ -246,6 +249,7 @@ export function ProjectsWorkspace({
         move: 'moved to folder',
         delete: 'moved to Deleted Files',
         restore: 'restored',
+        'permanent-delete': 'permanently deleted',
       };
       setNotice(`${res.updated_count} project(s) ${labels[action] || 'updated'}${partialNote}.`);
       await refresh();
@@ -419,15 +423,26 @@ export function ProjectsWorkspace({
   function renderContinueEditingButton(project: Project) {
     if (project.deleted_at) {
       return (
-        <button
-          type="button"
-          className="dash-secondary"
-          disabled={pending}
-          onClick={() => void mutateProject(project, 'restore')}
-        >
-          <RotateCcw size={16} />
-          Restore
-        </button>
+        <>
+          <button
+            type="button"
+            className="dash-secondary"
+            disabled={pending}
+            onClick={() => void mutateProject(project, 'restore')}
+          >
+            <RotateCcw size={16} />
+            Restore
+          </button>
+          <button
+            type="button"
+            className="dash-secondary dash-danger-btn"
+            disabled={pending}
+            onClick={() => openProjectModal(project, 'permanent-delete')}
+          >
+            <Trash2 size={16} />
+            Delete Permanently
+          </button>
+        </>
       );
     }
     const editorPath = getProjectEditorPath(project);
@@ -723,15 +738,26 @@ export function ProjectsWorkspace({
               <strong>{selectedIds.length} selected</strong>
               <div className="bulk-actions-buttons">
                 {mode === 'deleted' ? (
-                  <button
-                    type="button"
-                    className="dash-secondary"
-                    disabled={pending}
-                    onClick={() => void runBulkAction('restore')}
-                  >
-                    <RotateCcw size={15} />
-                    Restore Selected
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="dash-secondary"
+                      disabled={pending}
+                      onClick={() => void runBulkAction('restore')}
+                    >
+                      <RotateCcw size={15} />
+                      Restore Selected
+                    </button>
+                    <button
+                      type="button"
+                      className="dash-secondary dash-danger-btn"
+                      disabled={pending}
+                      onClick={() => setBulkPermanentDeleteOpen(true)}
+                    >
+                      <Trash2 size={15} />
+                      Delete Permanently
+                    </button>
+                  </>
                 ) : (
                   <>
                     <button
@@ -1059,6 +1085,8 @@ export function ProjectsWorkspace({
               ? 'Version history'
               : activeProjectModal.action === 'share'
               ? 'Share project'
+              : activeProjectModal.action === 'permanent-delete'
+              ? 'Delete permanently?'
               : 'Move to Deleted Files?'
           }
           onClose={() => {
@@ -1187,7 +1215,9 @@ export function ProjectsWorkspace({
                 if (!pending) {
                   void mutateProject(
                     activeProjectModal.project,
-                    activeProjectModal.action === 'delete' ? 'delete' : 'update',
+                    activeProjectModal.action === 'delete' || activeProjectModal.action === 'permanent-delete'
+                      ? activeProjectModal.action
+                      : 'update',
                     activeProjectModal.action === 'rename'
                       ? { title: projectInput }
                       : activeProjectModal.action === 'move'
@@ -1251,6 +1281,13 @@ export function ProjectsWorkspace({
                   Files. Its document content and versions are preserved for recovery.
                 </p>
               )}
+              {activeProjectModal.action === 'permanent-delete' && (
+                <p>
+                  <strong>Warning:</strong> “{activeProjectModal.project.title}” will be
+                  permanently deleted. This action cannot be undone. All document content,
+                  versions, and associated data will be removed from the database.
+                </p>
+              )}
               <div className="dialog-actions">
                 <button
                   type="button"
@@ -1265,6 +1302,8 @@ export function ProjectsWorkspace({
                     ? 'Saving…'
                     : activeProjectModal.action === 'delete'
                     ? 'Move to Deleted Files'
+                    : activeProjectModal.action === 'permanent-delete'
+                    ? 'Delete Permanently'
                     : 'Save changes'}
                 </button>
               </div>
@@ -1437,6 +1476,43 @@ export function ProjectsWorkspace({
                 onClick={() => void runBulkAction('delete')}
               >
                 {pending ? 'Deleting…' : 'Move to Deleted Files'}
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* BULK PERMANENT DELETE CONFIRMATION DIALOG */}
+      {bulkPermanentDeleteOpen && (
+        <Dialog
+          title="Permanently delete selected projects?"
+          onClose={() => {
+            if (!pending) setBulkPermanentDeleteOpen(false);
+          }}
+        >
+          <div className="dash-form">
+            <p>
+              <strong>Warning:</strong> You are about to permanently delete{' '}
+              <strong>{selectedIds.length}</strong> project(s). This action cannot be undone.
+              All document content, versions, and associated data will be removed from the
+              database.
+            </p>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="dash-secondary"
+                disabled={pending}
+                onClick={() => setBulkPermanentDeleteOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={pending}
+                onClick={() => void runBulkAction('permanent-delete')}
+              >
+                {pending ? 'Deleting…' : 'Delete Permanently'}
               </button>
             </div>
           </div>

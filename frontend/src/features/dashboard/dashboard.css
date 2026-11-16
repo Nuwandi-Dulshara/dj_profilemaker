@@ -450,37 +450,101 @@
 /* Statistics Grid */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
 }
 
 .projects-stats-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.projects-stats-grid .stat-card {
+  min-width: 0;
+}
+
+
+/* Beautiful Statistics Cards */
+
 .stat-card {
-  background: #ffffff;
-  border: 1px solid var(--line, #dfe7f0);
-  border-radius: 12px;
-  padding: 18px 20px;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  box-shadow: 0 4px 12px #0b1f3a05;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 160px;
+  min-width: 0;
+  padding: 28px;
+  overflow: hidden;
+
+  background: linear-gradient(135deg, #0B1F3A, #194778);
+  border: 1px solid rgba(147, 197, 253, 0.25);
+  border-radius: 20px;
+
+  box-shadow: 0 8px 25px rgba(11, 31, 58, 0.12);
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.stat-card:nth-child(2),
+.stat-card:nth-child(4) {
+  background: linear-gradient(135deg, #12365b, #24609b);
+}
+
+.stat-card:nth-child(3) {
+  background: linear-gradient(135deg, #17416d, #347bc0);
+}
+
+.stat-card::before {
+  content: "";
+  position: absolute;
+  width: 155px;
+  height: 155px;
+  top: -55px;
+  right: -50px;
+  border-radius: 50%;
+  border: 1px solid rgba(191, 219, 254, 0.2);
+  box-shadow: 0 0 0 28px rgba(147, 197, 253, 0.04);
+  pointer-events: none;
+}
+
+.stat-card::after {
+  content: "";
+  position: absolute;
+  bottom: 26px;
+  right: 28px;
+  width: 42px;
+  height: 4px;
+  background: #93C5FD;
+  border-radius: 10px;
+}
+
+.stat-card:hover {
+  transform: translateY(-6px);
+  border-color: #93C5FD;
+  box-shadow: 0 18px 40px rgba(11, 31, 58, 0.22);
 }
 
 .stat-label {
-  font-size: 0.875rem;
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--muted, #526176);
+  color: #C7DEFA;
 }
 
 .stat-value {
-  font-size: 1.75rem;
-  font-weight: 750;
-  color: var(--navy, #0B1F3A);
+  position: relative;
+  z-index: 1;
+  font-size: 42px;
+  font-weight: 800;
+  color: #FFFFFF;
   line-height: 1.2;
+  letter-spacing: -1px;
 }
+
 
 .stat-meta {
   font-size: 0.875rem;
@@ -580,20 +644,54 @@
 }
 
 /* Main Dashboard Grid */
-.dash-main-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
-}
 
-.dash-col-primary,
-.dash-col-secondary {
+/* Main Dashboard Grid - Single Column */
+
+.dash-main-grid {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  width: 100%;
   min-width: 0;
 }
+
+/* Keep existing class names */
+.dash-col-primary,
+.dash-col-secondary {
+  display: contents;
+}
+
+/* 1. Recent Projects */
+.dash-col-primary > .dash-panel:nth-child(1) {
+  order: 1;
+}
+
+/* 2. Career Profile Vault */
+.dash-col-secondary > .dash-panel:nth-child(1) {
+  order: 2;
+}
+
+/* 3. Recent Activity */
+.dash-col-primary > .dash-panel:nth-child(2) {
+  order: 3;
+}
+
+/* 4. Document Storage */
+.dash-col-secondary > .dash-panel:nth-child(2) {
+  order: 4;
+}
+
+/* Full-width dashboard panels */
+.dash-main-grid .dash-panel {
+  width: 100%;
+  min-width: 0;
+  padding: 26px;
+  border-radius: 18px;
+  border: 1px solid #dfe7f0;
+  background: #ffffff;
+  box-shadow: 0 6px 22px rgba(11, 31, 58, 0.05);
+}
+
 
 /* Project List Rows (Dashboard) */
 .project-list {
@@ -824,21 +922,30 @@
 }
 
 /* Your Projects Workspace Layout */
+
 .projects-layout-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
   align-items: start;
+  width: 100%;
 }
 
 .folders-panel,
 .projects-main-panel {
-  background: #ffffff;
-  border: 1px solid var(--line, #dfe7f0);
-  border-radius: 14px;
-  padding: 20px;
+  width: 100%;
   min-width: 0;
 }
+
+.projects-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.projects-table {
+  width: 100%;
+}
+
 
 .folders-panel-header {
   display: flex;
@@ -1412,8 +1519,8 @@
 
 /* Responsive Breakpoints */
 @media (max-width: 1150px) {
-  .stats-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .dash-overview .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .projects-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1474,7 +1581,9 @@
 }
 
 @media (max-width: 599px) {
-  .stats-grid,
+  .dash-overview .stats-grid {
+    grid-template-columns: 1fr;
+  } 
   .projects-stats-grid {
     grid-template-columns: 1fr;
   }
@@ -1497,3 +1606,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .stat-card {
+    transition: none;
+  }
+
+  .stat-card:hover {
+    transform: none;
+  }
+}

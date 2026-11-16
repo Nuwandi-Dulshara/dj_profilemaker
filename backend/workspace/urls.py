@@ -36,5 +36,5 @@ urlpatterns = [
     path('notifications/read-all/', views.NotificationsReadAllView.as_view()),
     path('notifications/<uuid:pk>/', views.NotificationDetailView.as_view()),
 ]
-for action in ['duplicate', 'delete', 'restore']:
+for action in ['duplicate', 'delete', 'restore', 'permanent-delete']:
     urlpatterns.append(path(f'projects/<uuid:pk>/{action}/', views.ProjectActionView.as_view(), {'action': action}))

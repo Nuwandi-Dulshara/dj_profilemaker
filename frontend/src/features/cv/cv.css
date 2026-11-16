@@ -15,8 +15,6 @@
 .cv-sections button { display: flex; align-items: center; gap: 6px; text-align: left; padding: 9px 12px; border-radius: 8px; border: 0; background: transparent; font-size: .875rem; font-weight: 600; color: #111827; }
 .cv-sections button:hover { background: var(--ice); }
 .cv-sections button.is-active { background: var(--navy); color: #fff; }
-.cv-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
-.cv-mode-switch button { justify-content: center; padding: 7px 8px; font-size: .78rem; }
 .cv-code-textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .85rem !important; line-height: 1.45; }
 .cv-score-banner { padding: 12px 14px; border-radius: 10px; background: var(--ice); border: 1px solid #c8d4e2; }
 .cv-edit-panel, .cv-preview-panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; min-width: 0; }
