@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Code2, Download, FileCode, FileSearch, FolderKanban, History, Printer, Redo2, Save, SearchCheck, Sparkles, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, BarChart3, Download, FileCode, FileSearch, History, Printer, Redo2, Save, SearchCheck, Sparkles, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
 import { CvDocument } from '../../document-engine/CvDocument';
-import { normalize, sectionLabels, type CvDoc } from '../../document-engine/schema';
+import { normalize, type CvDoc } from '../../document-engine/schema';
 import { api, ApiError } from '../../services/api';
 import { formatDate, useRefreshWorkspace, type Project } from '../dashboard/data';
-import { PanelEditor, type Panel } from './CvForms';
 
 interface DocResponse { project: { id: string; title: string; kind: string }; content: unknown; design: unknown; revision: number }
 interface Version { id: number; name: string; revision: number; created_at: string }
@@ -21,8 +20,6 @@ interface FilesResponse { files: Record<'CV.tsx' | 'style.css' | 'cv.json', stri
 type Status = 'saved' | 'unsaved' | 'saving' | 'failed' | 'conflict';
 type DialogKind = 'versions' | 'save-version' | 'save-template' | 'ats' | 'analyzer' | 'matcher' | 'import-profile' | 'export' | null;
 const statusText: Record<Status, string> = { saved: 'All changes saved', unsaved: 'Unsaved changes…', saving: 'Saving…', failed: 'Save failed', conflict: 'Out of date' };
-const panels: Panel[] = ['personal', 'summary', 'experience', 'education', 'skills', 'projects', 'certifications', 'achievements', 'publications', 'languages', 'volunteering', 'references', 'custom', 'design'];
-const panelLabel = (p: Panel) => p === 'personal' ? 'Personal Information' : p === 'design' ? 'Design and Layout' : sectionLabels[p];
 const vaultSections = [
   { key: 'personal', label: 'Personal Details' },
   { key: 'summary', label: 'Professional Summary' },
@@ -41,8 +38,6 @@ export function CvEditor() {
   const [title, setTitle] = useState('');
   const [loadError, setLoadError] = useState('');
   const [status, setStatus] = useState<Status>('saved');
-  const [panel, setPanel] = useState<Panel>('personal');
-  const [editorMode, setEditorMode] = useState<'guided' | 'code'>('guided');
   const [activeFile, setActiveFile] = useState<'cv.json' | 'CV.tsx' | 'style.css'>('cv.json');
   const [jsonDraft, setJsonDraft] = useState('');
   const [jsonError, setJsonError] = useState('');
@@ -198,18 +193,6 @@ export function CvEditor() {
     catch (err) { setMessage((err as Error).message); setTitle(savedTitle.current); }
   }
 
-  async function switchToCodeMode() {
-    setEditorMode('code');
-    if (latest.current && !jsonDirty.current) setJsonDraft(JSON.stringify(latest.current, null, 2));
-    try {
-      await ensureFlushed();
-      const res = await api<FilesResponse>(`/projects/${projectId}/files/`);
-      setProjectFiles(res.files);
-    } catch {
-      // Fallback to local representation if offline
-    }
-  }
-
   function applyJsonDraft() {
     if (blocked.current) return;
     setJsonError('');
@@ -347,68 +330,51 @@ export function CvEditor() {
       </div>
 
       <div className="cv-layout" data-tab={mobileTab}>
-        <nav className="cv-sections" aria-label="CV sections">
-          <div className="cv-mode-switch" role="group" aria-label="Editor mode">
-            <button type="button" className={editorMode === 'guided' ? 'is-active' : ''} onClick={() => setEditorMode('guided')}><FolderKanban size={15} />Guided &amp; Visual</button>
-            <button type="button" className={editorMode === 'code' ? 'is-active' : ''} onClick={() => void switchToCodeMode()}><Code2 size={15} />Files &amp; Code</button>
-          </div>
-          {editorMode === 'guided' ? (
-            panels.map(p => <button key={p} className={panel === p ? 'is-active' : ''} aria-current={panel === p} onClick={() => setPanel(p)}>{panelLabel(p)}</button>)
-          ) : (
-            <>
-              <span className="cv-hint">Project File Explorer</span>
-              {(['cv.json', 'CV.tsx', 'style.css'] as const).map(fname => (
-                <button key={fname} className={activeFile === fname ? 'is-active' : ''} onClick={() => setActiveFile(fname)}>
-                  <FileCode size={15} /> {fname}
-                </button>
-              ))}
-              <p className="cv-hint">React and CSS source editing is not implemented yet. Edit cv.json, then apply changes to save your CV.</p>
-            </>
-          )}
+        <nav className="cv-sections" aria-label="Project files">
+          <span className="cv-hint">Project File Explorer</span>
+          {(['cv.json', 'CV.tsx', 'style.css'] as const).map(fname => (
+            <button key={fname} className={activeFile === fname ? 'is-active' : ''} onClick={() => setActiveFile(fname)}>
+              <FileCode size={15} /> {fname}
+            </button>
+          ))}
+          <p className="cv-hint">React and CSS source editing is not implemented yet. Edit cv.json, then apply changes to save your CV.</p>
         </nav>
 
-        <section className="cv-edit-panel" aria-label={editorMode === 'guided' ? panelLabel(panel) : `File ${activeFile}`}>
-          {editorMode === 'guided' ? (
-            <>
-              <h2>{panelLabel(panel)}</h2>
-              <PanelEditor panel={panel} doc={doc} update={update} />
-            </>
-          ) : (
-            <div className="cv-form-body">
-              <h2>{activeFile}</h2>
-              {activeFile === 'cv.json' ? (
-                <>
-                  {jsonError && <p className="dash-error" role="alert">{jsonError}</p>}
-                  <p className="cv-hint">JSON edits remain a draft until you select Apply cv.json changes. Then wait for All changes saved before leaving.</p>
-                  <label className="cv-field">
-                    <span>Structured CV Data (cv.json)</span>
-                    <textarea
-                      aria-label="cv.json code editor"
-                      className="cv-code-textarea"
-                      rows={18}
-                      value={jsonDraft}
-                      onChange={e => { jsonDirty.current = true; setJsonDraft(e.target.value); setJsonError(''); }}
-                    />
-                  </label>
-                  <div className="cv-entry-actions">
-                    <button type="button" className="button button-primary" disabled={status === 'conflict'} onClick={applyJsonDraft}>Apply cv.json changes</button>
-                    <button type="button" className="dash-secondary" onClick={() => { jsonDirty.current = false; setJsonDraft(JSON.stringify(doc, null, 2)); setJsonError(''); }}>Reset</button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="cv-hint">Read-only generated source file ({activeFile}). Export as ZIP to customize locally in a full React environment.</p>
+        <section className="cv-edit-panel" aria-label={`File ${activeFile}`}>
+          <div className="cv-form-body">
+            <h2>{activeFile}</h2>
+            {activeFile === 'cv.json' ? (
+              <>
+                {jsonError && <p className="dash-error" role="alert">{jsonError}</p>}
+                <p className="cv-hint">JSON edits remain a draft until you select Apply cv.json changes. Then wait for All changes saved before leaving.</p>
+                <label className="cv-field">
+                  <span>Structured CV Data (cv.json)</span>
                   <textarea
-                    aria-label={`${activeFile} source`}
+                    aria-label="cv.json code editor"
                     className="cv-code-textarea"
                     rows={18}
-                    readOnly
-                    value={projectFiles[activeFile] || '// Loading file...'}
+                    value={jsonDraft}
+                    onChange={e => { jsonDirty.current = true; setJsonDraft(e.target.value); setJsonError(''); }}
                   />
-                </>
-              )}
-            </div>
-          )}
+                </label>
+                <div className="cv-entry-actions">
+                  <button type="button" className="button button-primary" disabled={status === 'conflict'} onClick={applyJsonDraft}>Apply cv.json changes</button>
+                  <button type="button" className="dash-secondary" onClick={() => { jsonDirty.current = false; setJsonDraft(JSON.stringify(doc, null, 2)); setJsonError(''); }}>Reset</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="cv-hint">Read-only generated source file ({activeFile}). Export as ZIP to customize locally in a full React environment.</p>
+                <textarea
+                  aria-label={`${activeFile} source`}
+                  className="cv-code-textarea"
+                  rows={18}
+                  readOnly
+                  value={projectFiles[activeFile] || '// Loading file...'}
+                />
+              </>
+            )}
+          </div>
         </section>
 
         <section className="cv-preview-panel" aria-label="Live preview">

@@ -32,7 +32,9 @@ def create_project(user, data):
 @transaction.atomic
 def change_project(user, pk, action, data=None):
     query = Project.objects.select_for_update().filter(owner=user)
-    if action != 'restore':
+    if action in ('restore', 'permanent-delete'):
+        query = query.filter(deleted_at__isnull=False)
+    else:
         query = query.filter(deleted_at__isnull=True)
     project = get_object_or_404(query, pk=pk)
     if action == 'update':
@@ -52,6 +54,11 @@ def change_project(user, pk, action, data=None):
         project.deleted_at = timezone.now()
         project.save(update_fields=['deleted_at', 'updated_at'])
         activity = 'deleted'
+    elif action == 'permanent-delete':
+        title = project.title
+        project.delete()
+        Activity.objects.create(owner=user, project=None, title=title, action='permanently_deleted')
+        return {'deleted': str(pk), 'title': title}
     else:
         if project.deleted_at is None:
             return project
@@ -65,9 +72,9 @@ def change_project(user, pk, action, data=None):
 @transaction.atomic
 def bulk_change_projects(user, data):
     action = data.get('action')
-    valid_actions = {'favorite', 'unfavorite', 'archive', 'unarchive', 'move', 'delete', 'restore'}
+    valid_actions = {'favorite', 'unfavorite', 'archive', 'unarchive', 'move', 'delete', 'restore', 'permanent-delete'}
     if action not in valid_actions:
-        raise ValidationError({'action': 'Choose favorite, unfavorite, archive, unarchive, move, delete, or restore.'})
+        raise ValidationError({'action': 'Choose favorite, unfavorite, archive, unarchive, move, delete, restore, or permanent-delete.'})
     raw_ids = data.get('project_ids')
     if not isinstance(raw_ids, list) or not raw_ids or len(raw_ids) > 100:
         raise ValidationError({'project_ids': 'Select between 1 and 100 projects.'})
@@ -92,7 +99,7 @@ def bulk_change_projects(user, data):
                 raise ValidationError({'folder': 'Selected folder does not exist.'})
 
     query = Project.objects.select_for_update().filter(owner=user, id__in=parsed_ids)
-    if action == 'restore':
+    if action in ('restore', 'permanent-delete'):
         query = query.filter(deleted_at__isnull=False)
     else:
         query = query.filter(deleted_at__isnull=True)
@@ -104,6 +111,7 @@ def bulk_change_projects(user, data):
     now = timezone.now()
     updated_ids = []
     activities = []
+    projects_to_delete = []
     for project in owned_projects:
         if action == 'favorite':
             project.favorite = True
@@ -129,6 +137,9 @@ def bulk_change_projects(user, data):
             project.deleted_at = now
             project.save(update_fields=['deleted_at', 'updated_at'])
             act_label = 'deleted'
+        elif action == 'permanent-delete':
+            projects_to_delete.append(project)
+            act_label = 'permanently_deleted'
         else:
             project.deleted_at = None
             project.save(update_fields=['deleted_at', 'updated_at'])
@@ -136,7 +147,12 @@ def bulk_change_projects(user, data):
         updated_ids.append(project.id)
         activities.append(Activity(owner=user, project=project, title=project.title, action=act_label))
 
-    Activity.objects.bulk_create(activities)
+    if action == 'permanent-delete':
+        # Create activities first, then delete projects (activities will have project=NULL due to SET_NULL)
+        Activity.objects.bulk_create(activities)
+        Project.objects.filter(id__in=updated_ids).delete()
+    else:
+        Activity.objects.bulk_create(activities)
     updated_set = set(updated_ids)
     failed_ids = [pid for pid in parsed_ids if pid not in updated_set]
     return {
