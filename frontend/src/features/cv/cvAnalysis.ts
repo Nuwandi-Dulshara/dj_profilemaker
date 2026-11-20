@@ -445,6 +445,228 @@ export function runAtsCheck(renderedHtml: string, renderedCss: string): AtsAnaly
 }
 
 /**
+ * Cover Letter ATS & Structure Checker: Analyze the saved, rendered Cover Letter HTML and CSS
+ * for ATS compatibility, business letter structure, contact details, salutation, sign-off, and PDF/DOCX extraction.
+ */
+export function runCoverLetterAtsCheck(renderedHtml: string, renderedCss: string): AtsAnalysisResult {
+  const { doc, fullText } = parseRenderedCvDom(renderedHtml);
+  const words = fullText
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+  const wordCount = words.length;
+  const items: AtsIssueItem[] = [];
+
+  const letterElements = [
+    { name: 'Salutation', regex: /\b(dear\s+[a-z0-9]|to\s+whom\s+it\s+may\s+concern|hiring\s+manager|recruitment\s+team|selection\s+committee)\b/i },
+    { name: 'Opening Hook & Role', regex: /\b(apply|applying|application|position|role|opportunity|interest\s+in|writing\s+to)\b/i },
+    { name: 'Value & Experience Body', regex: /\b(experience|developed|engineered|built|led|delivered|skills|project|team|impact|achieved)\b/i },
+    { name: 'Sign-Off & Closing', regex: /\b(sincerely|regards|best\s+regards|kind\s+regards|respectfully|thank\s+you|yours\s+truly|cordially)\b/i },
+  ];
+
+  const detectedSections: string[] = [];
+  const missingSections: string[] = [];
+  for (const el of letterElements) {
+    if (el.regex.test(fullText)) detectedSections.push(el.name);
+    else missingSections.push(el.name);
+  }
+
+  // 1. Readable text and ideal cover letter length (100 - 500 words)
+  if (wordCount < 60) {
+    items.push({
+      id: 'letter-readability-length',
+      category: 'Readable Text & Cover Letter Length',
+      status: wordCount === 0 ? 'Issue Found' : 'Warning',
+      issue: `Low extractable text volume (${wordCount} words detected).`,
+      explanation:
+        'A compelling cover letter typically contains 180–400 words across 3–4 focused paragraphs that ATS systems and hiring managers can read quickly.',
+      recommendation:
+        'Write a clear opening paragraph stating the target role, 1–2 body paragraphs connecting your achievements to the company, and a concise closing paragraph.',
+    });
+  } else if (wordCount > 550) {
+    items.push({
+      id: 'letter-readability-length',
+      category: 'Readable Text & Cover Letter Length',
+      status: 'Warning',
+      issue: `Cover letter is quite long (${wordCount} words).`,
+      explanation:
+        'Cover letters exceeding one A4 page (over ~450–500 words) may lose recruiter attention during initial screening.',
+      recommendation: 'Trim repetitive sentences so your cover letter fits comfortably on a single A4 page.',
+    });
+  } else {
+    items.push({
+      id: 'letter-readability-length',
+      category: 'Readable Text & Cover Letter Length',
+      status: 'Pass',
+      issue: `Readable cover letter length (${wordCount} words) detected.`,
+      explanation: 'Your saved cover letter has an effective word count for both ATS indexing and human review.',
+      recommendation: 'Keep paragraphs focused on 2–3 high-impact examples relevant to the target role.',
+    });
+  }
+
+  // 2. Sender Contact Information
+  const hasEmail = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(fullText);
+  const hasPhone = /(?:\+?\d[\d\s().-]{7,}\d)/.test(fullText);
+  const hasLocation =
+    /\b(street|road|ave|city|country|london|new york|colombo|sri lanka|usa|uk|canada|australia|remote|[A-Z][a-z]+,\s*[A-Z]{2,})\b/i.test(
+      fullText
+    );
+  const hasProfileLink =
+    /\b(linkedin\.com|github\.com|portfolio|https?:\/\/)/i.test(fullText) ||
+    doc.querySelectorAll('a[href]').length > 0;
+
+  const missingContacts: string[] = [];
+  if (!hasEmail) missingContacts.push('Email address');
+  if (!hasPhone) missingContacts.push('Phone number');
+  if (!hasLocation) missingContacts.push('Location / City');
+  if (!hasProfileLink) missingContacts.push('LinkedIn / Portfolio link');
+
+  if (missingContacts.length > 0) {
+    items.push({
+      id: 'contact-information',
+      category: 'Sender Contact Header',
+      status: !hasEmail || !hasPhone ? 'Issue Found' : 'Warning',
+      issue: `Missing sender contact details: ${missingContacts.join(', ')}.`,
+      explanation:
+        'Your cover letter header should match your CV header with complete contact information in plain selectable text.',
+      recommendation: `Include ${missingContacts.join(', ')} at the top of your cover letter.`,
+    });
+  } else {
+    items.push({
+      id: 'contact-information',
+      category: 'Sender Contact Header',
+      status: 'Pass',
+      issue: 'Sender email, phone number, location, and profile links are present.',
+      explanation: 'All key sender contact fields are readable in the cover letter.',
+      recommendation: 'Keep your cover letter header visually consistent with your CV.',
+    });
+  }
+
+  // 3. Salutation, Opening Hook, Body & Sign-Off Structure
+  if (missingSections.length > 0) {
+    items.push({
+      id: 'letter-structure',
+      category: 'Cover Letter Components (Salutation, Body & Sign-Off)',
+      status: 'Issue Found',
+      issue: `Missing standard cover letter component(s): ${missingSections.join(', ')}.`,
+      explanation:
+        'A professional cover letter should include a personalized salutation (e.g., "Dear Hiring Manager,"), an opening hook naming the role, evidence-backed body paragraphs, and a formal sign-off (e.g., "Sincerely,").',
+      recommendation: `Add clear sections in your React JSX letter for: ${missingSections.join(', ')}.`,
+    });
+  } else {
+    items.push({
+      id: 'letter-structure',
+      category: 'Cover Letter Components (Salutation, Body & Sign-Off)',
+      status: 'Pass',
+      issue: 'Salutation, role opening, body narrative, and professional sign-off detected.',
+      explanation: `Detected components: ${detectedSections.join(', ')}.`,
+      recommendation: 'Address the hiring manager or team by name whenever listed in the job posting.',
+    });
+  }
+
+  // 4. Tables & Multi-Column Layouts
+  const tableCount = doc.querySelectorAll('table').length;
+  const usesGridOrMultiColCss =
+    /\b(grid-template-columns|column-count|columns\s*:)\b/i.test(renderedCss + renderedHtml);
+
+  if (tableCount > 0 || usesGridOrMultiColCss) {
+    items.push({
+      id: 'tables-multicolumn',
+      category: 'Tables & Multi-Column Layouts',
+      status: 'Warning',
+      issue: 'Detected table or multi-column layout in the cover letter.',
+      explanation:
+        'Standard business cover letters should follow a single-column top-to-bottom linear flow so ATS parsers do not interleave header and paragraph lines.',
+      recommendation: 'Use a clean single-column layout (<header>, <main>, <p>, <footer>) for your cover letter.',
+    });
+  } else {
+    items.push({
+      id: 'tables-multicolumn',
+      category: 'Tables & Multi-Column Layouts',
+      status: 'Pass',
+      issue: 'Clean single-column business letter layout.',
+      explanation: 'Linear paragraph flow ensures accurate ATS text extraction.',
+      recommendation: 'Continue using semantic <p> tags for each paragraph.',
+    });
+  }
+
+  // 5. Images or Graphics
+  const images = Array.from(doc.querySelectorAll('img'));
+  const imagesMissingAlt = images.filter((img) => !(img.getAttribute('alt') || '').trim());
+  if (images.length > 0) {
+    items.push({
+      id: 'images-graphics',
+      category: 'Images & Signature Graphics',
+      status: imagesMissingAlt.length > 0 ? 'Warning' : 'Pass',
+      issue:
+        imagesMissingAlt.length > 0
+          ? `Found ${images.length} image(s) without alt text.`
+          : `Found ${images.length} image(s) with descriptive alt attributes.`,
+      explanation:
+        'If you include a digital signature image or logo, always type your printed name in plain text below the signature so ATS systems can read it.',
+      recommendation: 'Add alt text to any uploaded signature image and keep your typed name and contact info as plain text.',
+    });
+  } else {
+    items.push({
+      id: 'images-graphics',
+      category: 'Images & Signature Graphics',
+      status: 'Pass',
+      issue: 'No images blocking cover letter text extraction.',
+      explanation: 'All letter content is selectable plain text.',
+      recommendation: 'If you add a signature image, keep your typed name underneath it.',
+    });
+  }
+
+  // 6. PDF & DOCX Text Extraction Readiness
+  const hasHiddenText =
+    /\b(opacity\s*:\s*0|visibility\s*:\s*hidden|display\s*:\s*none|font-size\s*:\s*0)\b/i.test(
+      renderedCss + renderedHtml
+    );
+  if (hasHiddenText || wordCount === 0) {
+    items.push({
+      id: 'pdf-docx-extraction',
+      category: 'PDF & DOCX Text Extraction Readiness',
+      status: 'Issue Found',
+      issue:
+        wordCount === 0
+          ? 'No rendered text available to extract into PDF or DOCX.'
+          : 'Hidden CSS rules (display:none / opacity:0) detected.',
+      explanation: 'Hidden text or empty markup prevents clean export to PDF and Word DOCX.',
+      recommendation: 'Ensure all cover letter paragraphs render visibly inside semantic HTML elements.',
+    });
+  } else {
+    items.push({
+      id: 'pdf-docx-extraction',
+      category: 'PDF & DOCX Text Extraction Readiness',
+      status: 'Pass',
+      issue: 'Rendered cover letter DOM is clean and ready for PDF and DOCX export.',
+      explanation: 'Paragraphs and headings will preserve their reading order in PDF and Word exports.',
+      recommendation: 'Preview your cover letter in A4 view before exporting.',
+    });
+  }
+
+  const passCount = items.filter((i) => i.status === 'Pass').length;
+  const warningCount = items.filter((i) => i.status === 'Warning').length;
+  const score = wordCount === 0 ? 0 : Math.round(((passCount + warningCount * 0.5) / items.length) * 100);
+
+  return {
+    score,
+    wordCount,
+    detectedSections,
+    missingSections,
+    contactInfo: {
+      email: hasEmail,
+      phone: hasPhone,
+      location: hasLocation,
+      profileLink: hasProfileLink,
+    },
+    items,
+    disclaimer:
+      'Disclaimer: This checker evaluates your saved, rendered Cover Letter for ATS readability and business letter structure. It does not guarantee acceptance by any specific employer or ATS platform.',
+  };
+}
+
+/**
  * Known technical skills, tools, frameworks, and concepts for precise extraction.
  * Note: Specific tools (e.g. "REST Assured", "GitLab", "Selenium") are matched distinctly
  * from general or related concepts (e.g. "REST API", "Git", "testing").
