@@ -26,9 +26,6 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../../services/api';
-import { AdvancedCvRoutes } from '../cv/AdvancedCvRoutes';
-import { CoverLetterRoutes } from '../cover-letter/CoverLetterRoutes';
-import { TemplateRoutes } from '../templates/TemplateRoutes';
 import { ProfilePage } from '../profile/ProfilePage';
 import { useSession } from '../auth/AuthProvider';
 import {
@@ -89,9 +86,6 @@ export function DashboardPage() {
   const isProjectsRoute = pathname.endsWith('/projects');
   const isDeletedRoute = pathname.endsWith('/deleted-files');
   const isDeferredModuleRoute = pathname.includes('/profile');
-  const isTemplatesRoute = pathname.includes('/cv-templates');
-  const isAdvancedCvRoute = pathname.includes('/advanced-cv');
-  const isCoverLetterRoute = pathname.includes('/cover-letters');
 
   useEffect(() => {
     setMobileDrawerOpen(false);
@@ -446,12 +440,6 @@ export function DashboardPage() {
             <ProjectsWorkspace mode="projects" workflows={summary.data?.workflows} />
           ) : isDeletedRoute ? (
             <ProjectsWorkspace mode="deleted" workflows={summary.data?.workflows} />
-          ) : isTemplatesRoute ? (
-            <TemplateRoutes />
-          ) : isAdvancedCvRoute ? (
-            <AdvancedCvRoutes />
-          ) : isCoverLetterRoute ? (
-            <CoverLetterRoutes />
           ) : isDeferredModuleRoute ? (
             <ProfilePage />
           ) : pathname === '/dashboard' ? (
