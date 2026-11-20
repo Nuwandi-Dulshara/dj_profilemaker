@@ -9,6 +9,8 @@ urlpatterns = [
     path('projects/', views.RecentProjectsView.as_view()),
     path('projects/bulk-actions/', views.ProjectBulkActionsView.as_view()),
     path('projects/<uuid:pk>/', views.ProjectDetailView.as_view()),
+    path('projects/<uuid:pk>/document/', views.ProjectDocumentView.as_view()),
+    path('projects/<uuid:pk>/upload-zip/', views.ProjectUploadZipView.as_view()),
     path('folders/', views.FoldersView.as_view()),
     path('folders/<uuid:pk>/', views.FolderDetailView.as_view()),
     path('project-folders/', views.FoldersView.as_view()),

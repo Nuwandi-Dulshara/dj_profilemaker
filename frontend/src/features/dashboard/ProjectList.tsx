@@ -1,12 +1,23 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Archive, Copy, FileText, FolderInput, MoreHorizontal, Pencil, RotateCcw, Star, Trash2 } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
 import { api } from '../../services/api';
-import { formatDate, kindNames, useRefreshWorkspace, useWorkspace, type Folder, type Page, type Project } from './data';
+import { formatDate, getProjectEditorPath, kindNames, useRefreshWorkspace, useWorkspace, type Folder, type Page, type Project } from './data';
 import { QueryState } from './QueryState';
 
 type Action = 'rename' | 'move' | 'delete' | 'menu';
-export function ProjectList({ search = '', expanded = false, state = 'active' }: { search?: string; expanded?: boolean; state?: string }) {
+export function ProjectList({
+  search = '',
+  expanded = false,
+  state = 'active',
+  workflows,
+}: {
+  search?: string;
+  expanded?: boolean;
+  state?: string;
+  workflows?: Record<string, boolean>;
+}) {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<{ project: Project; action: Action } | null>(null);
   const [value, setValue] = useState('');
@@ -38,16 +49,21 @@ export function ProjectList({ search = '', expanded = false, state = 'active' }:
     {notice && <p className="dash-toast" role="status">{notice}</p>}
     {error && !selected && <p className="dash-error" role="alert">{error}</p>}
     <QueryState pending={query.isPending} error={query.error} retry={query.refetch}>
-      {query.data?.results.length === 0 ? <div className="dash-empty"><FileText size={34} /><h3>{search ? 'No matching projects' : state === 'deleted' ? 'No deleted projects' : state === 'archived' ? 'No archived projects' : 'No projects yet'}</h3><p>{search ? 'Try a different project title.' : 'Your documents will appear here when you have projects to manage.'}</p></div> : <div className="project-list">{query.data?.results.map(project => <article className="project-row" key={project.id}>
-        <span className="project-icon"><FileText size={24} /></span><div className="project-details"><h3>{project.title}</h3><p>{kindNames[project.kind]}{project.folder_name && ` · ${project.folder_name}`}</p><time dateTime={project.updated_at}>Edited {formatDate(project.updated_at)}</time></div>
-        <div className="project-controls"><button className={`dash-icon-button ${project.favorite ? 'is-favorite' : ''}`} aria-label={`${project.favorite ? 'Unfavorite' : 'Favorite'} ${project.title}`} aria-pressed={project.favorite} disabled={pending || !!project.deleted_at} onClick={() => mutate(project, 'update', { favorite: !project.favorite })}><Star size={19} fill={project.favorite ? 'currentColor' : 'none'} /></button>
-          {project.deleted_at ? <button className="dash-secondary" disabled={pending} onClick={() => mutate(project, 'restore') }><RotateCcw size={16} />Restore</button> : <button className="dash-secondary editor-unavailable" disabled title="The document editor is not available yet">Continue Editing</button>}
-          {!project.deleted_at && <button className="dash-icon-button" aria-label={`Actions for ${project.title}`} onClick={() => open(project, 'menu')}><MoreHorizontal size={22} /></button>}
-        </div>
-      </article>)}</div>}
+      {query.data?.results.length === 0 ? <div className="dash-empty"><FileText size={34} /><h3>{search ? 'No matching projects' : state === 'deleted' ? 'No deleted projects' : state === 'archived' ? 'No archived projects' : 'No projects yet'}</h3><p>{search ? 'Try a different project title.' : 'Your documents will appear here when you have projects to manage.'}</p></div> : <div className="project-list">{query.data?.results.map(project => {
+        const editorPath = getProjectEditorPath(project);
+        const canEdit = Boolean(workflows?.[project.kind]);
+        return (
+          <article className="project-row" key={project.id}>
+            <span className="project-icon"><FileText size={24} /></span><div className="project-details"><h3>{project.title}</h3><p>{kindNames[project.kind]}{project.folder_name && ` · ${project.folder_name}`}</p><time dateTime={project.updated_at}>Edited {formatDate(project.updated_at)}</time></div>
+            <div className="project-controls"><button className={`dash-icon-button ${project.favorite ? 'is-favorite' : ''}`} aria-label={`${project.favorite ? 'Unfavorite' : 'Favorite'} ${project.title}`} aria-pressed={project.favorite} disabled={pending || !!project.deleted_at} onClick={() => mutate(project, 'update', { favorite: !project.favorite })}><Star size={19} fill={project.favorite ? 'currentColor' : 'none'} /></button>
+              {project.deleted_at ? <button className="dash-secondary" disabled={pending} onClick={() => mutate(project, 'restore') }><RotateCcw size={16} />Restore</button> : canEdit ? <Link className="dash-secondary" to={editorPath}>Continue Editing</Link> : <button className="dash-secondary editor-unavailable" disabled title="The document editor is not available yet">Continue Editing</button>}
+              {!project.deleted_at && <button className="dash-icon-button" aria-label={`Actions for ${project.title}`} onClick={() => open(project, 'menu')}><MoreHorizontal size={22} /></button>}
+            </div>
+          </article>
+        );
+      })}</div>}
       {query.data && query.data.count > (expanded ? 12 : 6) && <div className="dash-pagination"><button className="dash-secondary" disabled={!query.data.previous} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page} · {query.data.count} projects</span><button className="dash-secondary" disabled={!query.data.next} onClick={() => setPage(page + 1)}>Next</button></div>}
     </QueryState>
-    <p className="dash-caption">Document editors are not available yet. Project organization and recovery are available.</p>
     {selected && <Dialog title={selected.action === 'menu' ? selected.project.title : selected.action === 'rename' ? 'Rename project' : selected.action === 'move' ? 'Move to folder' : 'Move to Deleted Files?'} onClose={() => { if (!pending) setSelected(null); }}>
       {error && <p className="dash-error" role="alert">{error}</p>}
       {selected.action === 'menu' ? <div className="project-action-menu">

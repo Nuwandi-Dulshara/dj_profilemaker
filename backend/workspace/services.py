@@ -46,7 +46,9 @@ def change_project(user, pk, action, data=None):
         activity = 'updated'
     elif action == 'duplicate':
         document = Document.objects.filter(project=project).first()
-        project = Project.objects.create(owner=user, title=f'{project.title[:190]} (copy)', kind=project.kind, folder=project.folder)
+        custom_title = str(data.get('title', '')).strip()[:200] if isinstance(data, dict) else ''
+        next_title = custom_title or f'{project.title[:190]} (copy)'
+        project = Project.objects.create(owner=user, title=next_title, kind=project.kind, folder=project.folder)
         if document:
             Document.objects.create(project=project, schema_version=document.schema_version, content=document.content, design=document.design)
         activity = 'duplicated'

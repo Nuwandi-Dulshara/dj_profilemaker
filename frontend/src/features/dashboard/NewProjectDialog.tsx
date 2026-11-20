@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Code2, FileSpreadsheet, Mail } from 'lucide-react';
+import { Code2, Mail } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
 
 const workflowsList = [
@@ -9,13 +9,6 @@ const workflowsList = [
     description: 'Build and customize React-based CVs with code, visual, and guided editing.',
     path: '/dashboard/advanced-cv/new',
     icon: Code2,
-  },
-  {
-    key: 'template_cv',
-    title: 'CV Templates',
-    description: 'Browse ATS-friendly, modern, and creative React CV templates.',
-    path: '/dashboard/cv-templates',
-    icon: FileSpreadsheet,
   },
   {
     key: 'cover_letter',
@@ -35,7 +28,7 @@ export function NewProjectDialog({
 }) {
   const navigate = useNavigate();
   const anyEnabled = Boolean(
-    workflows && (workflows.advanced_cv || workflows.template_cv || workflows.cover_letter)
+    workflows && (workflows.advanced_cv || workflows.cover_letter)
   );
 
   return (
@@ -77,4 +70,3 @@ export function NewProjectDialog({
     </Dialog>
   );
 }
-

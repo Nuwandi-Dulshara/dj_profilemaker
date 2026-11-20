@@ -63,7 +63,6 @@ function getDescendantIds(folders: Folder[], rootId: string): Set<string> {
 
 function ProjectTypeIcon({ kind }: { kind: Project['kind'] }) {
   if (kind === 'advanced_cv') return <Code2 size={20} />;
-  if (kind === 'template_cv') return <FileSpreadsheet size={20} />;
   return <Mail size={20} />;
 }
 
@@ -526,7 +525,7 @@ export function ProjectsWorkspace({
             <span className="stat-label">By Document Type</span>
             <strong className="stat-value">{stats.total}</strong>
             <span className="stat-meta">
-              {stats.advanced_cv} Advanced · {stats.template_cv} Template · {stats.cover_letter} Letters
+              {stats.advanced_cv} Advanced · {stats.cover_letter} Letters
             </span>
           </article>
         </section>
@@ -670,7 +669,6 @@ export function ProjectsWorkspace({
                 >
                   <option value="all">All Types</option>
                   <option value="advanced_cv">Advanced CV</option>
-                  <option value="template_cv">CV Template</option>
                   <option value="cover_letter">Cover Letter</option>
                 </select>
               </label>
