@@ -1,4 +1,8 @@
+import base64
+import io
+import posixpath
 import uuid
+import zipfile
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, Sum, F, Func, BigIntegerField, TextField
@@ -8,6 +12,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Activity, Document, Folder, Notification, Project
@@ -37,7 +42,6 @@ def get_project_stats(user):
     counts = projects.aggregate(
         total=Count('id', filter=active),
         advanced_cv=Count('id', filter=active & Q(kind='advanced_cv')),
-        template_cv=Count('id', filter=active & Q(kind='template_cv')),
         cover_letter=Count('id', filter=active & Q(kind='cover_letter')),
         deleted=Count('id', filter=Q(deleted_at__isnull=False)),
     )
@@ -56,7 +60,7 @@ class SummaryView(PrivateView):
             'counts': counts,
             'project_stats': project_stats,
             'profile': career_summary(request.user),
-            'workflows': {'advanced_cv': False, 'template_cv': False, 'cover_letter': False, 'profile': False},
+            'workflows': {'advanced_cv': True, 'cover_letter': False, 'profile': False},
         })
 
 
@@ -75,8 +79,8 @@ class RecentProjectsView(PrivateView):
 
         kind = request.query_params.get('kind', '').strip()
         if kind and kind != 'all':
-            if kind not in ['advanced_cv', 'template_cv', 'cover_letter']:
-                raise ValidationError({'kind': 'Choose advanced_cv, template_cv, or cover_letter.'})
+            if kind not in ['advanced_cv', 'cover_letter']:
+                raise ValidationError({'kind': 'Choose advanced_cv or cover_letter.'})
             projects = projects.filter(kind=kind)
 
         favorite = request.query_params.get('favorite', '').strip().lower()
@@ -149,7 +153,7 @@ class ProjectDetailView(PrivateView):
 
 class ProjectActionView(PrivateView):
     def post(self, request, pk, action):
-        result = change_project(request.user, pk, action)
+        result = change_project(request.user, pk, action, request.data)
         if action == 'permanent-delete':
             return Response(result)
         return Response(ProjectSerializer(result).data, status=201 if action == 'duplicate' else 200)
@@ -200,6 +204,148 @@ class FolderDetailView(PrivateView):
             Folder.objects.filter(owner=request.user, parent=folder).update(parent=folder.parent)
             folder.delete()
         return Response({'deleted': str(pk)})
+
+
+class ProjectDocumentView(PrivateView):
+    def get(self, request, pk):
+        project = get_object_or_404(Project, pk=pk, owner=request.user, deleted_at__isnull=True)
+        document, _ = Document.objects.get_or_create(project=project)
+        return Response({
+            'project': ProjectSerializer(project).data,
+            'content': document.content if isinstance(document.content, dict) else {},
+            'design': document.design if isinstance(document.design, dict) else {},
+            'revision': document.revision,
+            'schema_version': document.schema_version,
+        })
+
+    def put(self, request, pk):
+        with transaction.atomic():
+            project = get_object_or_404(Project.objects.select_for_update(), pk=pk, owner=request.user, deleted_at__isnull=True)
+            document, _ = Document.objects.select_for_update().get_or_create(project=project)
+
+            title = request.data.get('title')
+            if isinstance(title, str) and title.strip() and title.strip() != project.title:
+                project.title = title.strip()[:200]
+
+            content = request.data.get('content')
+            if content is not None:
+                if not isinstance(content, dict):
+                    raise ValidationError({'content': 'Content must be an object.'})
+                document.content = content
+
+            design = request.data.get('design')
+            if design is not None:
+                if not isinstance(design, dict):
+                    raise ValidationError({'design': 'Design must be an object.'})
+                document.design = design
+
+            document.revision += 1
+            document.save(update_fields=['content', 'design', 'revision'])
+            project.save(update_fields=['title', 'updated_at'])
+            Activity.objects.create(owner=request.user, project=project, title=project.title, action='updated')
+
+        return Response({
+            'project': ProjectSerializer(project).data,
+            'content': document.content,
+            'design': document.design,
+            'revision': document.revision,
+            'schema_version': document.schema_version,
+        })
+
+
+SUPPORTED_ZIP_TEXT_EXTS = {'.jsx', '.js', '.tsx', '.ts', '.css', '.json', '.html', '.md', '.txt'}
+SUPPORTED_ZIP_IMAGE_MIMES = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+}
+
+
+class ProjectUploadZipView(PrivateView):
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def post(self, request, pk):
+        upload = request.FILES.get('file')
+        if not upload:
+            raise ValidationError({'file': 'Attach a ZIP archive.'})
+        if upload.size > 5 * 1024 * 1024:
+            raise ValidationError({'file': 'ZIP archive must be 5 MB or smaller.'})
+
+        raw_bytes = upload.read()
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(raw_bytes))
+        except zipfile.BadZipFile:
+            raise ValidationError({'file': 'Invalid ZIP archive.'})
+
+        extracted_files = {}
+        extracted_folders = set()
+        total_uncompressed = 0
+
+        with zf:
+            infos = zf.infolist()
+            if len(infos) > 150:
+                raise ValidationError({'file': 'ZIP archive contains too many entries (maximum 150).'})
+            for info in infos:
+                raw_name = info.filename.replace('\\', '/').strip('/')
+                if not raw_name or raw_name.startswith('__MACOSX') or raw_name.endswith('.DS_Store'):
+                    continue
+                norm = posixpath.normpath(raw_name).strip('/')
+                if not norm or norm == '.' or norm.startswith('..') or '/..' in norm:
+                    raise ValidationError({'file': f'Unsafe path in ZIP archive: {info.filename}'})
+
+                parts = norm.split('/')
+                for i in range(1, len(parts)):
+                    extracted_folders.add('/'.join(parts[:i]))
+
+                if info.is_dir() or info.filename.endswith('/'):
+                    extracted_folders.add(norm)
+                    continue
+
+                total_uncompressed += info.file_size
+                if total_uncompressed > 5 * 1024 * 1024:
+                    raise ValidationError({'file': 'Extracted ZIP contents exceed 5 MB limit.'})
+
+                dot = norm.rfind('.')
+                ext = norm[dot:].lower() if dot != -1 else ''
+                if ext in SUPPORTED_ZIP_TEXT_EXTS:
+                    try:
+                        extracted_files[norm] = zf.read(info).decode('utf-8')
+                    except UnicodeDecodeError:
+                        continue
+                elif ext in SUPPORTED_ZIP_IMAGE_MIMES:
+                    b64 = base64.b64encode(zf.read(info)).decode('ascii')
+                    extracted_files[norm] = f'data:{SUPPORTED_ZIP_IMAGE_MIMES[ext]};base64,{b64}'
+
+        with transaction.atomic():
+            project = get_object_or_404(Project.objects.select_for_update(), pk=pk, owner=request.user, deleted_at__isnull=True)
+            document, _ = Document.objects.select_for_update().get_or_create(project=project)
+            content = document.content if isinstance(document.content, dict) else {}
+            current_files = dict(content.get('files')) if isinstance(content.get('files'), dict) else {}
+            current_folders = set(content.get('folders')) if isinstance(content.get('folders'), list) else set()
+
+            current_files.update(extracted_files)
+            current_folders.update(extracted_folders)
+
+            document.content = {
+                **content,
+                'files': current_files,
+                'folders': sorted(current_folders),
+            }
+            document.revision += 1
+            document.save(update_fields=['content', 'revision'])
+            project.save(update_fields=['updated_at'])
+            Activity.objects.create(owner=request.user, project=project, title=project.title, action='uploaded zip')
+
+        return Response({
+            'project': ProjectSerializer(project).data,
+            'content': document.content,
+            'design': document.design,
+            'revision': document.revision,
+            'extracted_count': len(extracted_files),
+        })
 
 
 class NotificationsView(PrivateView):

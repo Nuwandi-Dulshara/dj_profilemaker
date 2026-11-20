@@ -32,14 +32,14 @@ class DashboardTests(TestCase):
 
     def test_counts_are_owned_and_exclude_deleted_but_include_archived(self):
         Project.objects.create(owner=self.user, title='Archived', kind='cover_letter', archived=True)
-        Project.objects.create(owner=self.user, title='Deleted', kind='template_cv', deleted_at=timezone.now())
+        Project.objects.create(owner=self.user, title='Deleted', kind='advanced_cv', deleted_at=timezone.now())
         data = self.client.get('/api/dashboard/summary/').json()
-        self.assertEqual(data['counts'], {'total': 2, 'advanced_cv': 1, 'template_cv': 0, 'cover_letter': 1, 'deleted': 1})
-        self.assertEqual(data['workflows'], {'advanced_cv': False, 'template_cv': False, 'cover_letter': False, 'profile': False})
+        self.assertEqual(data['counts'], {'total': 2, 'advanced_cv': 1, 'cover_letter': 1, 'deleted': 1})
+        self.assertEqual(data['workflows'], {'advanced_cv': True, 'cover_letter': False, 'profile': False})
 
     def test_search_pagination_and_state_filters(self):
         for i in range(8):
-            Project.objects.create(owner=self.user, title=f'Design {i}', kind='template_cv')
+            Project.objects.create(owner=self.user, title=f'Design {i}', kind='advanced_cv')
         response = self.client.get('/api/dashboard/recent-projects/?search=Design&page_size=3&page=2').json()
         self.assertEqual(response['count'], 8)
         self.assertEqual(len(response['results']), 3)
@@ -175,7 +175,7 @@ class DashboardTests(TestCase):
         self.assertEqual(str(self.project.folder_id), root['id'])
 
     def test_bulk_actions_enforce_ownership_and_update_state(self):
-        second = Project.objects.create(owner=self.user, title='Product CV', kind='template_cv')
+        second = Project.objects.create(owner=self.user, title='Product CV', kind='advanced_cv')
         folder = Folder.objects.create(owner=self.user, name='Target Folder')
         ids = [str(self.project.pk), str(second.pk), str(self.foreign.pk)]
 
@@ -207,3 +207,50 @@ class DashboardTests(TestCase):
         self.foreign.refresh_from_db()
         self.assertFalse(self.foreign.favorite)
         self.assertIsNone(self.foreign.deleted_at)
+
+    def test_duplicate_with_custom_title_and_zip_upload_extraction(self):
+        import io
+        import zipfile
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        token = self.client.get('/api/auth/csrf/').json()['csrfToken']
+        dup = self.client.post(
+            f'/api/projects/{self.project.pk}/duplicate/',
+            {'title': 'Engineering CV Copy 2026'},
+            format='json',
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(dup.status_code, 201)
+        self.assertEqual(dup.json()['title'], 'Engineering CV Copy 2026')
+
+        bad_buf = io.BytesIO()
+        with zipfile.ZipFile(bad_buf, 'w') as zf:
+            zf.writestr('../evil.jsx', 'rejected path traversal')
+        bad_buf.seek(0)
+        bad_res = self.client.post(
+            f'/api/projects/{self.project.pk}/upload-zip/',
+            {'file': SimpleUploadedFile('evil.zip', bad_buf.read(), content_type='application/zip')},
+            format='multipart',
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(bad_res.status_code, 400)
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('components/Header.jsx', 'export default function Header() { return <header>CV</header>; }')
+            zf.writestr('styles.css', '.cv { color: navy; }')
+        buf.seek(0)
+
+        upload = SimpleUploadedFile('cv-bundle.zip', buf.read(), content_type='application/zip')
+        res = self.client.post(
+            f'/api/projects/{self.project.pk}/upload-zip/',
+            {'file': upload},
+            format='multipart',
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn('components/Header.jsx', data['content']['files'])
+        self.assertIn('styles.css', data['content']['files'])
+        self.assertIn('components', data['content']['folders'])
+

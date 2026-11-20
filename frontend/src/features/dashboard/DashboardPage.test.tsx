@@ -13,7 +13,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 it('shows owned API counts and honest empty states, with unavailable editor choices', async () => {
   vi.stubGlobal('fetch', vi.fn(async (path: string) => {
-    const data = path.includes('summary') ? { counts: { total: 0, advanced_cv: 0, template_cv: 0, cover_letter: 0, deleted: 0 }, profile: { sections: [], completed: 1, total: 7, percent: 14 }, workflows: {} } : path.includes('storage') ? { used_bytes: 0, quota_bytes: null, scope: 'Stored document data.' } : empty;
+    const data = path.includes('summary') ? { counts: { total: 0, advanced_cv: 0, cover_letter: 0, deleted: 0 }, profile: { sections: [], completed: 1, total: 7, percent: 14 }, workflows: {} } : path.includes('storage') ? { used_bytes: 0, quota_bytes: null, scope: 'Stored document data.' } : empty;
     return new Response(JSON.stringify(data));
   }));
   mount();
@@ -70,8 +70,8 @@ it('renders Your Projects with folder management, grid/list switching, filters, 
     if (path.includes('/auth/me/')) return new Response(JSON.stringify({ user: { id: 1, email: 'alex@example.test', first_name: 'Alex', last_name: 'Morgan' } }));
     if (path.includes('/dashboard/summary/')) {
       return new Response(JSON.stringify({
-        counts: { total: 2, advanced_cv: 1, template_cv: 0, cover_letter: 1, deleted: 0 },
-        project_stats: { total: 2, active: 2, favorites: 1, archived: 0, advanced_cv: 1, template_cv: 0, cover_letter: 1, deleted: 0 },
+        counts: { total: 2, advanced_cv: 1, cover_letter: 1, deleted: 0 },
+        project_stats: { total: 2, active: 2, favorites: 1, archived: 0, advanced_cv: 1, cover_letter: 1, deleted: 0 },
         profile: { sections: [{ key: 'personal', label: 'Personal details', complete: true }], completed: 1, total: 7, percent: 14 },
         workflows: {},
       }));
@@ -89,7 +89,7 @@ it('renders Your Projects with folder management, grid/list switching, filters, 
         results: projects,
         next: null,
         previous: null,
-        stats: { total: 2, active: 2, favorites: 1, archived: 0, advanced_cv: 1, template_cv: 0, cover_letter: 1, deleted: 0 },
+        stats: { total: 2, active: 2, favorites: 1, archived: 0, advanced_cv: 1, cover_letter: 1, deleted: 0 },
       }));
     }
     if (path.includes('/dashboard/storage/')) {

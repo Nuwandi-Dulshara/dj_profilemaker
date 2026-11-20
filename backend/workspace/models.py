@@ -17,7 +17,6 @@ class Folder(models.Model):
 class Project(models.Model):
     class Kind(models.TextChoices):
         ADVANCED_CV = 'advanced_cv', 'Advanced CV'
-        TEMPLATE_CV = 'template_cv', 'Template-based CV'
         COVER_LETTER = 'cover_letter', 'Cover letter'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -99,32 +98,3 @@ class Notification(models.Model):
         ordering = ['-created_at', '-id']
         indexes = [models.Index(fields=['owner', 'is_read', '-created_at'])]
 
-
-class SavedTemplate(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    name = models.CharField(max_length=120)
-    description = models.CharField(max_length=500, blank=True)
-    design = models.JSONField(default=dict)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-
-class TemplatePreference(models.Model):
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    template_id = models.CharField(max_length=80)
-    favorite = models.BooleanField(default=False)
-    last_used_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        constraints = [models.UniqueConstraint(fields=['owner', 'template_id'], name='workspace_unique_template_preference')]
-
-
-class TemplateCreation(models.Model):
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    key = models.UUIDField()
-    fingerprint = models.CharField(max_length=64)
-    project = models.ForeignKey(Project, on_delete=models.CASCADE)
-
-    class Meta:
-        constraints = [models.UniqueConstraint(fields=['owner', 'key'], name='workspace_unique_template_creation')]

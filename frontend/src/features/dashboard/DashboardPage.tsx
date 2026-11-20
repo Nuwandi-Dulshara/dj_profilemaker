@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { AdvancedCvRoutes } from '../cv/AdvancedCvBuilder';
 import { ProfilePage } from '../profile/ProfilePage';
 import { useSession } from '../auth/AuthProvider';
 import {
@@ -49,7 +50,6 @@ const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, exact: true },
   { label: 'Your Projects', path: '/dashboard/projects', icon: FolderKanban, exact: false },
   { label: 'Advanced CV Builder', path: '/dashboard/advanced-cv', icon: Code2, exact: false },
-  { label: 'CV Templates', path: '/dashboard/cv-templates', icon: FileSpreadsheet, exact: false },
   { label: 'Cover Letter Builder', path: '/dashboard/cover-letters', icon: Mail, exact: false },
   { label: 'User Profile', path: '/dashboard/profile', icon: UserRound, exact: false },
   { label: 'Deleted Files', path: '/dashboard/deleted-files', icon: Trash2, exact: false },
@@ -86,6 +86,7 @@ export function DashboardPage() {
   const isProjectsRoute = pathname.endsWith('/projects');
   const isDeletedRoute = pathname.endsWith('/deleted-files');
   const isDeferredModuleRoute = pathname.includes('/profile');
+  const isAdvancedCvRoute = pathname.includes('/advanced-cv');
 
   useEffect(() => {
     setMobileDrawerOpen(false);
@@ -174,8 +175,6 @@ export function DashboardPage() {
     ? 'Deleted Files'
     : pathname.includes('/advanced-cv')
     ? (pathname.endsWith('/advanced-cv') ? 'Advanced CV Builder' : 'Advanced CV')
-    : pathname.includes('/cv-templates')
-    ? 'CV Templates'
     : pathname.includes('/cover-letters')
     ? 'Cover Letter Builder'
     : pathname.includes('/profile')
@@ -440,6 +439,8 @@ export function DashboardPage() {
             <ProjectsWorkspace mode="projects" workflows={summary.data?.workflows} />
           ) : isDeletedRoute ? (
             <ProjectsWorkspace mode="deleted" workflows={summary.data?.workflows} />
+          ) : isAdvancedCvRoute ? (
+            <AdvancedCvRoutes />
           ) : isDeferredModuleRoute ? (
             <ProfilePage />
           ) : pathname === '/dashboard' ? (
@@ -476,7 +477,6 @@ export function DashboardPage() {
                       {[
                         { label: 'Total Projects', value: summary.data.counts.total },
                         { label: 'Advanced CVs', value: summary.data.counts.advanced_cv },
-                        { label: 'Template-Based CVs', value: summary.data.counts.template_cv },
                         { label: 'Cover Letters', value: summary.data.counts.cover_letter },
                         { label: 'Deleted Files', value: summary.data.counts.deleted },
                       ].map((stat) => (
@@ -514,20 +514,6 @@ export function DashboardPage() {
                     <div>
                       <strong>Create Advanced CV</strong>
                       <span>React component & visual CV workspace</span>
-                    </div>
-                    <ArrowRight size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    className="quick-action-card"
-                    onClick={() => setNewProjectOpen(true)}
-                  >
-                    <span className="quick-action-icon">
-                      <FileSpreadsheet size={22} />
-                    </span>
-                    <div>
-                      <strong>Choose CV Template</strong>
-                      <span>ATS-friendly, modern, and executive layouts</span>
                     </div>
                     <ArrowRight size={18} />
                   </button>
@@ -582,7 +568,7 @@ export function DashboardPage() {
                       </div>
                     </div>
 
-                    <ProjectList search={debouncedSearch} state={recentState} />
+                    <ProjectList search={debouncedSearch} state={recentState} workflows={summary.data?.workflows} />
                   </section>
 
                   {/* RECENT ACTIVITY */}
