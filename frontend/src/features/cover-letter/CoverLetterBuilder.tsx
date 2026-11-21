@@ -53,6 +53,7 @@ import {
 } from '../cv/CvAnalysisPanels';
 import { MonacoCodeEditor } from '../cv/MonacoCodeEditor';
 import { compileAndRenderCvWorkspace, exportRenderedCvToDocx } from '../cv/cvRuntime';
+import { openRenderedPdfInNewTab } from '../cv/pdfGenerator';
 import '../cv/advanced-cv.css';
 
 interface DocumentPayload {
@@ -1068,10 +1069,7 @@ export function BlankCoverLetterWorkspace() {
     }</title><style>${compiledPreview.css}\n${printNormalizationCss}</style></head><body>${sheetsHtml}</body></html>`;
 
     if (openInNewTab) {
-      const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      void openRenderedPdfInNewTab(pagesToRender, compiledPreview.css, title || 'Untitled');
       return;
     }
 
