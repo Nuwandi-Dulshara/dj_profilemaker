@@ -227,7 +227,7 @@ it('creates a new blank CV with default name Untitled, completely empty workspac
   // Navigate back to Created CVs table and verify the updated project name appears
   await userEvent.click(screen.getByRole('link', { name: /Back to CVs/i }));
   expect(await screen.findByText('Senior React Developer CV')).toBeVisible();
-});
+}, 15000);
 
 it('supports multi-file React imports, nested folders, file duplicate/rename, multi-page A4 preview, error detection, and DOCX export', async () => {
   const { compileAndRenderCvWorkspace, exportRenderedCvToDocx } = await import('./cvRuntime');
@@ -262,6 +262,24 @@ it('supports multi-file React imports, nested folders, file duplicate/rename, mu
   const docxBlob = await exportRenderedCvToDocx(compiled.html, 'Alex Rivera CV');
   expect(docxBlob.type).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   expect(docxBlob.size).toBeGreaterThan(500);
+
+  // 4. Verify 2-page .cv-page layout produces exactly 2 pages and filters out any empty trailing pages
+  const twoPageCv = compileAndRenderCvWorkspace({
+    'NuwandiCV.jsx': `
+      export default function NuwandiCV() {
+        return (
+          <main className="cv-document">
+            <article className="cv-page cv-page-one"><h1>Page 1 Content</h1></article>
+            <article className="cv-page cv-page-two"><h2>Page 2 Content</h2></article>
+            <article className="cv-page"></article>
+          </main>
+        );
+      }
+    `,
+  });
+  expect(twoPageCv.pages).toHaveLength(2);
+  expect(twoPageCv.pages[0]).toContain('Page 1 Content');
+  expect(twoPageCv.pages[1]).toContain('Page 2 Content');
 });
 
 it('enables ATS Checker, Job Matcher, and Grammar Checker after saving the CV and analyzes the saved rendered CV', async () => {

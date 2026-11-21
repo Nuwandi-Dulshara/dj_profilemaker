@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { CoverLetterRoutes } from '../cover-letter/CoverLetterBuilder';
 import { AdvancedCvRoutes } from '../cv/AdvancedCvBuilder';
 import { ProfilePage } from '../profile/ProfilePage';
 import { useSession } from '../auth/AuthProvider';
@@ -87,6 +88,7 @@ export function DashboardPage() {
   const isDeletedRoute = pathname.endsWith('/deleted-files');
   const isDeferredModuleRoute = pathname.includes('/profile');
   const isAdvancedCvRoute = pathname.includes('/advanced-cv');
+  const isCoverLetterRoute = pathname.includes('/cover-letters');
 
   useEffect(() => {
     setMobileDrawerOpen(false);
@@ -441,6 +443,8 @@ export function DashboardPage() {
             <ProjectsWorkspace mode="deleted" workflows={summary.data?.workflows} />
           ) : isAdvancedCvRoute ? (
             <AdvancedCvRoutes />
+          ) : isCoverLetterRoute ? (
+            <CoverLetterRoutes />
           ) : isDeferredModuleRoute ? (
             <ProfilePage />
           ) : pathname === '/dashboard' ? (

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import {
   runAtsCheck,
+  runCoverLetterAtsCheck,
   runGrammarCheck,
   runJobMatchAnalysis,
   type GrammarIssueType,
@@ -26,23 +27,25 @@ export function CvAnalysisToolbar({
   activeTool,
   onSelectTool,
   onSaveNow,
+  documentLabel = 'CV',
 }: {
   canAnalyze: boolean;
   hasUnsavedChanges: boolean;
   activeTool: ActiveAnalysisTool;
   onSelectTool: (tool: ActiveAnalysisTool) => void;
   onSaveNow: () => void;
+  documentLabel?: 'CV' | 'Cover Letter';
 }) {
   return (
-    <section className="adv-cv-analysis-bar" aria-label="CV Analysis Tools">
+    <section className="adv-cv-analysis-bar" aria-label={`${documentLabel} Analysis Tools`}>
       <div className="adv-cv-analysis-bar-left">
-        <span className="adv-cv-analysis-label">CV Analysis Tools</span>
+        <span className="adv-cv-analysis-label">{documentLabel} Analysis Tools</span>
         <span className="adv-cv-analysis-hint">
           {!canAnalyze
-            ? 'Save your CV with rendered content to enable ATS Checker, Job Matcher, and Grammar Checker.'
+            ? `Save your ${documentLabel} with rendered content to enable ATS Checker, Job Matcher, and Grammar Checker.`
             : hasUnsavedChanges
-            ? 'Analysis runs on your saved, rendered CV. Save to include recent edits.'
-            : 'Ready — analyzing your saved, rendered CV without downloading.'}
+            ? `Analysis runs on your saved, rendered ${documentLabel}. Save to include recent edits.`
+            : `Ready — analyzing your saved, rendered ${documentLabel} without downloading.`}
         </span>
       </div>
 
@@ -83,7 +86,7 @@ export function CvAnalysisToolbar({
         {(!canAnalyze || hasUnsavedChanges) && (
           <button type="button" className="dash-secondary" onClick={onSaveNow}>
             <Save size={14} />
-            Save CV to Analyze
+            Save {documentLabel} to Analyze
           </button>
         )}
       </div>
@@ -98,6 +101,7 @@ export function CvAnalysisDrawer({
   hasUnsavedChanges,
   onClose,
   onSaveNow,
+  documentLabel = 'CV',
 }: {
   activeTool: Exclude<ActiveAnalysisTool, null>;
   savedRenderedHtml: string;
@@ -105,14 +109,20 @@ export function CvAnalysisDrawer({
   hasUnsavedChanges: boolean;
   onClose: () => void;
   onSaveNow: () => void;
+  documentLabel?: 'CV' | 'Cover Letter';
 }) {
   const [jobDescription, setJobDescription] = useState('');
   const [jobResult, setJobResult] = useState<JobMatchAnalysisResult | null>(null);
   const [grammarFilter, setGrammarFilter] = useState<string>('ALL');
 
   const atsResult = useMemo(
-    () => (activeTool === 'ats' ? runAtsCheck(savedRenderedHtml, savedRenderedCss) : null),
-    [activeTool, savedRenderedHtml, savedRenderedCss]
+    () =>
+      activeTool === 'ats'
+        ? documentLabel === 'Cover Letter'
+          ? runCoverLetterAtsCheck(savedRenderedHtml, savedRenderedCss)
+          : runAtsCheck(savedRenderedHtml, savedRenderedCss)
+        : null,
+    [activeTool, documentLabel, savedRenderedHtml, savedRenderedCss]
   );
 
   const grammarResult = useMemo(

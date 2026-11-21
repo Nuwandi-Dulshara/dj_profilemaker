@@ -60,7 +60,7 @@ class SummaryView(PrivateView):
             'counts': counts,
             'project_stats': project_stats,
             'profile': career_summary(request.user),
-            'workflows': {'advanced_cv': True, 'cover_letter': False, 'profile': False},
+            'workflows': {'advanced_cv': True, 'cover_letter': True, 'profile': False},
         })
 
 
