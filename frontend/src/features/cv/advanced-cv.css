@@ -252,7 +252,26 @@
 .adv-cv-explorer-btns {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.adv-cv-explorer-btns .dash-icon-button,
+.adv-cv-tree-actions .dash-icon-button {
+  min-width: 26px;
+  min-height: 26px;
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.adv-cv-explorer-btns .dash-icon-button svg,
+.adv-cv-tree-actions .dash-icon-button svg,
+.adv-cv-tree-select svg,
+.adv-cv-tab svg {
+  flex-shrink: 0;
 }
 
 .adv-cv-tree {
@@ -285,7 +304,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 4px;
+  gap: 6px;
   padding: 5px 8px;
   border-radius: 8px;
   font-size: 0.84rem;
@@ -314,6 +333,7 @@
   flex: 1;
   min-width: 0;
   cursor: pointer;
+  padding: 2px 0;
 }
 
 .adv-cv-tree-select span {
@@ -325,11 +345,19 @@
 .adv-cv-tree-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
-  opacity: 0.85;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .adv-cv-tree-item.is-active .adv-cv-tree-actions .dash-icon-button {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.adv-cv-tree-item.is-active .adv-cv-tree-actions .dash-icon-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
   color: #ffffff;
 }
 
@@ -650,20 +678,21 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 36px 24px;
   background: #f8fafc;
   text-align: center;
 }
 
 .adv-cv-image-preview img {
-  max-width: 100%;
-  max-height: 320px;
-  object-fit: contain;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  max-width: 240px;
+  max-height: 240px;
+  object-fit: cover;
+  border: 2px solid var(--line);
+  border-radius: 12px;
   background: #ffffff;
+  box-shadow: 0 4px 14px rgba(11, 31, 58, 0.08);
 }
 
 .adv-cv-empty-workspace {
@@ -778,13 +807,56 @@
 .adv-cv-a4-page {
   position: relative;
   width: 794px;
+  height: 1123px;
   min-height: 1123px;
+  max-height: 1123px;
   background: #ffffff;
   color: #111827;
   box-shadow: 0 8px 24px rgba(11, 31, 58, 0.16);
   padding: 36px 42px;
   box-sizing: border-box;
+  overflow: hidden;
   overflow-wrap: anywhere;
+}
+
+.adv-cv-a4-page .screen-toolbar {
+  display: none !important;
+}
+
+.adv-cv-a4-page .cv-app {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.adv-cv-a4-page .cv-document {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.adv-cv-a4-page:has(.cv-page),
+.adv-cv-a4-page:has(.cv-document) {
+  padding: 0 !important;
+}
+
+.adv-cv-a4-page .app-shell {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.adv-cv-a4-page .cv-page {
+  width: 100% !important;
+  height: 1123px !important;
+  min-height: 1123px !important;
+  max-height: 1123px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
 }
 
 .adv-cv-a4-page-num {

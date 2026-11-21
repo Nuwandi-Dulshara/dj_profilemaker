@@ -146,17 +146,21 @@ export function analyzeFileDiagnostics(
       const importMatch = lineText.match(/^\s*import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/);
       if (importMatch) {
         const spec = importMatch[1];
-        if (spec !== 'react' && spec !== 'react-dom') {
-          const resolved = resolveWorkspacePath(filePath, spec, allFiles);
-          if (!resolved) {
-            diagnostics.push({
-              file: filePath,
-              line: idx + 1,
-              message: `Cannot resolve import "${spec}" from "${filePath}". Create or upload the target file.`,
-              severity: 'error',
-            });
-          }
+      if (
+        spec !== 'react' &&
+        spec !== 'react-dom' &&
+        spec !== 'react-dom/client'
+      ) {
+        const resolved = resolveWorkspacePath(filePath, spec, allFiles);
+        if (!resolved) {
+          diagnostics.push({
+            file: filePath,
+            line: idx + 1,
+            message: `Cannot resolve import "${spec}" from "${filePath}". Create or upload the target file.`,
+            severity: 'error',
+          });
         }
+      }
       }
     });
   }
@@ -187,14 +191,14 @@ export function transpileJsxToCommonJs(source: string): string {
         .map((s) => s.trim().replace(/\s+as\s+/g, ': '))
         .filter(Boolean)
         .join(', ');
-      return `const __mod_${defName} = __require("${spec}"); const ${defName} = __mod_${defName}.default !== undefined ? __mod_${defName}.default : __mod_${defName}; const { ${mapped} } = __mod_${defName};`;
+      return `var __mod_${defName} = __require("${spec}"); var ${defName} = __mod_${defName}.default !== undefined ? __mod_${defName}.default : __mod_${defName}; var { ${mapped} } = __mod_${defName};`;
     }
   );
 
   // 2. import * as ns from 'spec'
   code = code.replace(
     /^\s*import\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s*['"]([^'"]+)['"]\s*;?/gm,
-    (_m, ns: string, spec: string) => `const ${ns} = __require("${spec}");`
+    (_m, ns: string, spec: string) => `var ${ns} = __require("${spec}");`
   );
 
   // 3. import { a, b as c } from 'spec'
@@ -206,7 +210,7 @@ export function transpileJsxToCommonJs(source: string): string {
         .map((s) => s.trim().replace(/\s+as\s+/g, ': '))
         .filter(Boolean)
         .join(', ');
-      return `const { ${mapped} } = __require("${spec}");`;
+      return `var { ${mapped} } = __require("${spec}");`;
     }
   );
 
@@ -214,7 +218,7 @@ export function transpileJsxToCommonJs(source: string): string {
   code = code.replace(
     /^\s*import\s+([A-Za-z_$][\w$]*)\s+from\s*['"]([^'"]+)['"]\s*;?/gm,
     (_m, defName: string, spec: string) =>
-      `const __mod_${defName} = __require("${spec}"); const ${defName} = __mod_${defName} && __mod_${defName}.default !== undefined ? __mod_${defName}.default : __mod_${defName};`
+      `var __mod_${defName} = __require("${spec}"); var ${defName} = __mod_${defName} && __mod_${defName}.default !== undefined ? __mod_${defName}.default : __mod_${defName};`
   );
 
   // 5. import 'spec'
@@ -302,9 +306,25 @@ function parseAttributes(attrString: string): string {
       let depth = 1;
       i += 1;
       const exprStart = i;
+      let quote: string | null = null;
       while (i < trimmed.length && depth > 0) {
-        if (trimmed[i] === '{') depth += 1;
-        else if (trimmed[i] === '}') depth -= 1;
+        const ch = trimmed[i];
+        if (quote) {
+          if (ch === '\\') {
+            i += 2;
+            continue;
+          }
+          if (ch === quote) quote = null;
+          i += 1;
+          continue;
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+          quote = ch;
+          i += 1;
+          continue;
+        }
+        if (ch === '{') depth += 1;
+        else if (ch === '}') depth -= 1;
         i += 1;
       }
       const rawExpr = trimmed.slice(exprStart, i - 1).trim();
@@ -323,6 +343,19 @@ function formatTagRef(tagName: string): string {
   return JSON.stringify(tagName);
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, '\u00A0')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&bull;/g, '•')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
 function parseChildren(inner: string): string[] {
   const args: string[] = [];
   let i = 0;
@@ -332,9 +365,25 @@ function parseChildren(inner: string): string[] {
       let depth = 1;
       i += 1;
       const start = i;
+      let quote: string | null = null;
       while (i < inner.length && depth > 0) {
-        if (inner[i] === '{') depth += 1;
-        else if (inner[i] === '}') depth -= 1;
+        const ch = inner[i];
+        if (quote) {
+          if (ch === '\\') {
+            i += 2;
+            continue;
+          }
+          if (ch === quote) quote = null;
+          i += 1;
+          continue;
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+          quote = ch;
+          i += 1;
+          continue;
+        }
+        if (ch === '{') depth += 1;
+        else if (ch === '}') depth -= 1;
         i += 1;
       }
       const expr = inner.slice(start, i - 1).trim();
@@ -356,9 +405,12 @@ function parseChildren(inner: string): string[] {
         i += 1;
       }
       const rawText = inner.slice(start, i);
+      const hasNewline = rawText.includes('\n');
       const collapsed = rawText.replace(/\s*\n\s*/g, ' ');
       if (collapsed.trim()) {
-        args.push(JSON.stringify(collapsed));
+        args.push(JSON.stringify(decodeHtmlEntities(collapsed)));
+      } else if (!hasNewline && rawText.length > 0) {
+        args.push(JSON.stringify(decodeHtmlEntities(rawText)));
       }
     }
   }
@@ -563,21 +615,58 @@ export function transformJsxExpressions(input: string): string {
 /**
  * Split rendered CV HTML into one or more A4 pages.
  * Supports explicit page breaks (`class="page-break"`, `<hr class="page-break">`, `data-page-break`)
- * as well as top-level `.cv-page` / `.a4-page` blocks.
+ * as well as top-level `.cv-page` / `.a4-page` blocks, filtering out any empty/blank pages.
  */
 export function paginateRenderedHtml(html: string): string[] {
   const trimmed = html.trim();
   if (!trimmed) return [];
+
+  const isNonEmptyPageHtml = (fragment: string): boolean => {
+    const clean = fragment.trim();
+    if (!clean) return false;
+    if (typeof document !== 'undefined') {
+      const el = document.createElement('div');
+      el.innerHTML = clean;
+      const hasText = (el.textContent || '').trim().length > 0;
+      const hasMedia = el.querySelectorAll('img, svg, canvas').length > 0;
+      return hasText || hasMedia;
+    }
+    return clean.replace(/<[^>]+>/g, '').trim().length > 0;
+  };
 
   // Split on explicit page-break markers
   const explicitSplit = trimmed.split(
     /<(?:div|hr|section)\b[^>]*\bclass=["'][^"']*\bpage-break\b[^"']*["'][^>]*>(?:<\/(?:div|section)>)?/i
   );
   if (explicitSplit.length > 1) {
-    return explicitSplit.map((p) => p.trim()).filter(Boolean);
+    return explicitSplit.map((p) => p.trim()).filter(isNonEmptyPageHtml);
   }
 
-  return [trimmed];
+  // Also split when a wrapper (such as <main class="cv-document">) contains multiple top-level .cv-page articles/sections
+  if (typeof document !== 'undefined') {
+    const temp = document.createElement('div');
+    temp.innerHTML = trimmed;
+    const allCvPages = Array.from(temp.querySelectorAll('.cv-page'));
+    // Keep only top-level .cv-page elements (not nested inside another .cv-page)
+    const topLevelCvPages = allCvPages.filter((el) => !el.parentElement?.closest('.cv-page'));
+    const nonEmptyCvPages = topLevelCvPages.filter((pageEl) => {
+      const hasText = (pageEl.textContent || '').trim().length > 0;
+      const hasMedia = pageEl.querySelectorAll('img, svg, canvas').length > 0;
+      return hasText || hasMedia;
+    });
+
+    if (nonEmptyCvPages.length > 1) {
+      const rootEl = temp.firstElementChild as HTMLElement | null;
+      const rootClass = rootEl && !rootEl.classList.contains('cv-page') ? rootEl.className : '';
+      return nonEmptyCvPages.map((pageEl) =>
+        rootClass
+          ? `<div class="${rootClass}">${pageEl.outerHTML}</div>`
+          : pageEl.outerHTML
+      );
+    }
+  }
+
+  return isNonEmptyPageHtml(trimmed) ? [trimmed] : [];
 }
 
 /**
@@ -589,10 +678,20 @@ export function compileAndRenderCvWorkspace(files: Record<string, string>): Comp
 
   for (const [path, content] of Object.entries(files)) {
     if (path.endsWith('.css') && content.trim()) {
-      cssParts.push(`/* ${path} */\n${content}`);
+      // Scope :root and body selectors to .adv-cv-a4-page so user CSS never leaks into the workspace UI
+      const scopedCss = content
+        .replace(/:root\b/g, '.adv-cv-a4-page')
+        .replace(/\bbody\b/g, '.adv-cv-a4-page');
+      cssParts.push(`/* ${path} */\n${scopedCss}`);
     }
     diagnostics.push(...analyzeFileDiagnostics(path, content, files));
   }
+
+  // Find the first uploaded image data URL in the project (if any) so components using `useState("")` for a profile photo can display it
+  const firstUploadedImageKey = Object.keys(files).find(
+    (k) => /\.(png|jpe?g|svg|gif|webp)$/i.test(k) && (files[k] || '').startsWith('data:image/')
+  );
+  const firstUploadedImageDataUrl = firstUploadedImageKey ? files[firstUploadedImageKey] : '';
 
   // Determine entry React file
   const codeFiles = Object.keys(files).filter(
@@ -612,16 +711,20 @@ export function compileAndRenderCvWorkspace(files: Record<string, string>): Comp
   codeFiles.sort((a, b) => {
     const aBase = a.split('/').pop() || '';
     const bBase = b.split('/').pop() || '';
-    const rank = (name: string) => {
-      if (/^main\.(jsx|tsx|js|ts)$/i.test(name)) return 0;
-      if (/^app\.(jsx|tsx|js|ts)$/i.test(name)) return 1;
-      if (/^index\.(jsx|tsx|js|ts)$/i.test(name)) return 2;
-      if (/^cv\.(jsx|tsx|js|ts)$/i.test(name)) return 3;
+    const rank = (name: string, fullPath: string) => {
+      const src = files[fullPath] || '';
+      // Prefer component entry files (App.jsx / CV.jsx) over pure DOM mount wrappers (createRoot)
+      if (/createRoot\s*\(/.test(src) && !/\bexport\s+default\b/.test(src)) return 5;
+      if (/^app\.(jsx|tsx|js|ts)$/i.test(name)) return 0;
+      if (/^cv\.(jsx|tsx|js|ts)$/i.test(name)) return 1;
+      if (/^letter\.(jsx|tsx|js|ts)$/i.test(name)) return 1;
+      if (/^main\.(jsx|tsx|js|ts)$/i.test(name)) return 2;
+      if (/^index\.(jsx|tsx|js|ts)$/i.test(name)) return 3;
       return 4;
     };
     const aDepth = a.split('/').length;
     const bDepth = b.split('/').length;
-    return rank(aBase) - rank(bBase) || aDepth - bDepth || a.localeCompare(b);
+    return rank(aBase, a) - rank(bBase, b) || aDepth - bDepth || a.localeCompare(b);
   });
 
   const entryFile = codeFiles[0];
@@ -640,6 +743,10 @@ export function compileAndRenderCvWorkspace(files: Record<string, string>): Comp
       );
       if (byBasename) {
         return `src="${files[byBasename]}"`;
+      }
+      // Fallback to first uploaded image in the workspace if an image tag points to a placeholder path
+      if (firstUploadedImageDataUrl && /\.(png|jpe?g|svg|gif|webp)$/i.test(clean)) {
+        return `src="${firstUploadedImageDataUrl}"`;
       }
       return full;
     });
@@ -672,6 +779,66 @@ export function compileAndRenderCvWorkspace(files: Record<string, string>): Comp
     moduleCache[filePath] = exportsObj;
 
     let normalizedSource = rawSource;
+    // If the file starts with an orphaned array/object tail before the first declaration (e.g. from a partial paste),
+    // strip the leading orphaned fragment and provide empty array fallbacks for referenced `.map()` collections.
+    const firstDeclMatch = normalizedSource.match(/^\s*(?:import|export|const|let|var|function|class)\b/m);
+    if (firstDeclMatch && firstDeclMatch.index && firstDeclMatch.index > 0) {
+      const leadingFragment = normalizedSource.slice(0, firstDeclMatch.index);
+      if (/^\s*["'\]}]/.test(leadingFragment.trim())) {
+        const bodyFromDecl = normalizedSource.slice(firstDeclMatch.index);
+        const mappedVars = Array.from(bodyFromDecl.matchAll(/\b([a-zA-Z_$][\w$]*)\.map\s*\(/g)).map((m) => m[1]);
+        const missingDecls = Array.from(new Set(mappedVars))
+          .filter((v) => !new RegExp(`\\b(?:const|let|var|function)\\s+${v}\\b`).test(bodyFromDecl))
+          .map((v) => `const ${v} = [];`)
+          .join('\n');
+        normalizedSource = `${missingDecls}\n${bodyFromDecl}`;
+      }
+    }
+
+    // If the file is truncated at the bottom (e.g. cut off mid-prop `points={[ "...",` before closing tags),
+    // auto-close open prop brackets/tags and wrapper elements so the preview still renders what was written.
+    if (diagnostics.some((d) => d.file === filePath && d.message.startsWith('Unclosed "'))) {
+      let repaired = normalizedSource.trimEnd();
+      // Remove trailing comma if cut off inside an array
+      if (repaired.endsWith(',')) {
+        repaired = repaired.slice(0, -1).trimEnd();
+      }
+      // Check if we're inside an unclosed self-closing component prop like `<Project ... points={[ "..."`
+      const lastOpenTagIdx = repaired.lastIndexOf('<');
+      const lastCloseAngleIdx = repaired.lastIndexOf('>');
+      if (lastOpenTagIdx > lastCloseAngleIdx) {
+        const tailTag = repaired.slice(lastOpenTagIdx);
+        const openBrackets = (tailTag.match(/\[/g) || []).length - (tailTag.match(/\]/g) || []).length;
+        const openBraces = (tailTag.match(/\{/g) || []).length - (tailTag.match(/\}/g) || []).length;
+        repaired += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces)) + ' />';
+      }
+      // Close any unclosed JSX element tags in reverse order
+      const openTagStack: string[] = [];
+      const tagRegex = /<\/?([A-Za-z_$][\w$.-]*)\b[^>]*?(\/?)>/g;
+      let tm: RegExpExecArray | null;
+      while ((tm = tagRegex.exec(repaired)) !== null) {
+        const fullMatch = tm[0];
+        const tagName = tm[1];
+        const isSelf = tm[2] === '/' || /^(img|br|hr|input|meta|link)$/i.test(tagName);
+        if (fullMatch.startsWith('</')) {
+          if (openTagStack.length > 0 && openTagStack[openTagStack.length - 1] === tagName) {
+            openTagStack.pop();
+          }
+        } else if (!isSelf) {
+          openTagStack.push(tagName);
+        }
+      }
+      while (openTagStack.length > 0) {
+        const tagToClose = openTagStack.pop()!;
+        repaired += `\n</${tagToClose}>`;
+      }
+      const totalOpenParens = (repaired.match(/\(/g) || []).length - (repaired.match(/\)/g) || []).length;
+      const totalOpenBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
+      if (totalOpenParens > 0) repaired += '\n' + ')'.repeat(totalOpenParens) + ';';
+      if (totalOpenBraces > 0) repaired += '\n' + '}'.repeat(totalOpenBraces);
+      normalizedSource = repaired;
+    }
+
     // If the file is plain JSX without export/function declarations, wrap it in export default
     if (
       !/\bexport\s+(default|function|const|let)\b/.test(normalizedSource) &&
@@ -691,8 +858,39 @@ export function compileAndRenderCvWorkspace(files: Record<string, string>): Comp
 
     const transpiled = transpileJsxToCommonJs(normalizedSource);
 
+    const previewUseState = <T,>(initial: T | (() => T)) => {
+      if (
+        (initial === '' || initial === null) &&
+        firstUploadedImageDataUrl &&
+        /\bphoto\b|\bavatar\b|\bportrait\b/i.test(rawSource)
+      ) {
+        return React.useState<any>(firstUploadedImageDataUrl);
+      }
+      return React.useState(initial);
+    };
+
+    const reactRuntime = {
+      ...React,
+      default: React,
+      useState: previewUseState,
+      useMemo: React.useMemo,
+      useCallback: React.useCallback,
+      useRef: React.useRef,
+      useEffect: React.useEffect,
+    };
+
+    let mountedElement: React.ReactElement | null = null;
+    const reactDomClientMock = {
+      createRoot: () => ({
+        render: (el: React.ReactElement) => {
+          mountedElement = el;
+        },
+      }),
+    };
+
     const localRequire = (spec: string) => {
-      if (spec === 'react') return React;
+      if (spec === 'react') return reactRuntime;
+      if (spec === 'react-dom' || spec === 'react-dom/client') return reactDomClientMock;
       const target = resolveWorkspacePath(filePath, spec, files);
       if (!target) {
         throw new Error(`Cannot resolve import "${spec}" from "${filePath}"`);
@@ -700,26 +898,32 @@ export function compileAndRenderCvWorkspace(files: Record<string, string>): Comp
       return evaluateModule(target);
     };
 
-    // Execute in an isolated function scope with shadowed browser globals
+    // Execute in an isolated function scope with __-prefixed formal parameters
+    // so `import React from 'react'` or `import { useState } from 'react'` never causes a duplicate declaration error.
     const runner = new Function(
-      'React',
-      'useState',
-      'useMemo',
-      'useCallback',
-      'useRef',
-      'useEffect',
+      '__React',
+      '__useState',
+      '__useMemo',
+      '__useCallback',
+      '__useRef',
+      '__useEffect',
       '__require',
       'exports',
       'module',
       'window',
       'document',
       'fetch',
-      `"use strict";\n${transpiled}`
+      `"use strict";\nvar React = __React, useState = __useState, useMemo = __useMemo, useCallback = __useCallback, useRef = __useRef, useEffect = __useEffect;\n${transpiled}`
     );
 
+    const safeDocumentMock = {
+      getElementById: () => ({}),
+      querySelector: () => ({}),
+    };
+
     runner(
-      React,
-      React.useState,
+      reactRuntime,
+      previewUseState,
       React.useMemo,
       React.useCallback,
       React.useRef,
@@ -728,9 +932,13 @@ export function compileAndRenderCvWorkspace(files: Record<string, string>): Comp
       exportsObj,
       moduleObj,
       undefined,
-      undefined,
+      safeDocumentMock,
       undefined
     );
+
+    if (mountedElement && !moduleObj.exports.default) {
+      moduleObj.exports.default = mountedElement;
+    }
 
     evaluating.delete(filePath);
     moduleCache[filePath] = moduleObj.exports;

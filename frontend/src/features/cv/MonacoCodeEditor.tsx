@@ -164,9 +164,9 @@ export function MonacoCodeEditor({
     const wordMatch = currentLineText.match(/([A-Za-z_./-]{2,})$/);
     if (wordMatch) {
       setQueryWord(wordMatch[1]);
-      setShowSuggestions(true);
       setSelectedIndex(0);
     } else {
+      setQueryWord('');
       setShowSuggestions(false);
     }
   }

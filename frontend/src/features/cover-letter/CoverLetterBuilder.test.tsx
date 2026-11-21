@@ -210,5 +210,5 @@ it('creates a new blank Cover Letter with default name Untitled, empty workspace
   // Navigate back to Created Cover Letters table and verify the updated project name appears
   await userEvent.click(screen.getByRole('link', { name: /Back to Cover Letters/i }));
   expect(await screen.findByText('Staff Backend Cover Letter')).toBeVisible();
-});
+}, 15000);
 

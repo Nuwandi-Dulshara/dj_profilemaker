@@ -683,17 +683,20 @@ export function BlankCvWorkspace() {
     [projectId, title, files, folders, refresh]
   );
 
-  // Support Ctrl + S for saving
+  // Support Ctrl + S for saving and Ctrl + P for clean A4 PDF printing
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void handleSave();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        handleExportPdf(false);
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSave]);
+  }, [handleSave, files, title]);
 
   function handleTitleChange(val: string) {
     setTitle(val);
@@ -989,7 +992,7 @@ export function BlankCvWorkspace() {
   const savedCompiledPreview = useMemo(() => compileAndRenderCvWorkspace(savedFiles), [savedFiles]);
   const canAnalyzeSavedCv = Boolean(savedCompiledPreview.html.trim());
 
-  // Step 6: Download as PDF / Open PDF in New Tab (preserves A4 layout, formatting & multi-page pagination; separate from Save)
+  // Step 6: Download as PDF / Open PDF in New Tab (preserves exact A4 layout, formatting & multi-page pagination without blank spillover pages)
   function handleExportPdf(openInNewTab = false) {
     const pagesToRender =
       compiledPreview.pages.length > 0
@@ -999,15 +1002,80 @@ export function BlankCvWorkspace() {
     const sheetsHtml = pagesToRender
       .map(
         (pageHtml, idx) =>
-          `<article class="cv-print-sheet${idx < pagesToRender.length - 1 ? ' has-page-break' : ''}">${pageHtml}</article>`
+          `<div class="cv-print-sheet${idx < pagesToRender.length - 1 ? ' has-page-break' : ''}">${pageHtml}</div>`
       )
       .join('\n');
 
+    const printNormalizationCss = `
+      @page { size: A4 portrait; margin: 0; }
+      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 210mm;
+        background: #ffffff !important;
+        font-family: system-ui, -apple-system, sans-serif;
+        color: #111827;
+      }
+      .screen-toolbar { display: none !important; }
+      .cv-print-sheet {
+        width: 210mm;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: 296mm !important;
+        margin: 0 auto !important;
+        padding: 14mm;
+        background: #ffffff;
+        overflow: hidden !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+      .cv-print-sheet:has(.cv-page),
+      .cv-print-sheet:has(.cv-document),
+      .cv-print-sheet:has(.app-shell) {
+        padding: 0 !important;
+      }
+      .cv-print-sheet .app-shell,
+      .cv-print-sheet .cv-app,
+      .cv-print-sheet .cv-document {
+        display: block !important;
+        width: 210mm !important;
+        max-width: 210mm !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+      }
+      .cv-print-sheet .cv-document .cv-page,
+      .cv-print-sheet .cv-page {
+        display: block !important;
+        width: 210mm !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: 296mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+      .cv-print-sheet.has-page-break {
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+      .cv-print-sheet:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+      }
+    `;
+
     const docHtml = `<!doctype html><html><head><meta charset="utf-8"><title>${
       title || 'Untitled'
-    }</title><style>@page { size: A4; margin: 14mm; } * { box-sizing: border-box; } body { margin: 0; font-family: system-ui, -apple-system, sans-serif; color: #111827; background: #ffffff; } .cv-print-sheet { width: 100%; max-width: 794px; margin: 0 auto; padding: 12px 16px; } .has-page-break { page-break-after: always; break-after: page; }\n${
-      compiledPreview.css
-    }</style></head><body>${sheetsHtml}</body></html>`;
+    }</title><style>${compiledPreview.css}\n${printNormalizationCss}</style></head><body>${sheetsHtml}</body></html>`;
 
     if (openInNewTab) {
       const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
@@ -1713,30 +1781,36 @@ export function BlankCvWorkspace() {
           >
             {openTabs.length > 0 && (
               <div className="adv-cv-tabs" role="tablist" aria-label="Open file tabs">
-                {openTabs.map((tab) => (
-                  <div
-                    key={tab}
-                    role="tab"
-                    aria-selected={activeTab === tab}
-                    className={`adv-cv-tab ${activeTab === tab ? 'is-active' : ''}`}
-                    onClick={() => setActiveTab(tab)}
-                  >
-                    <span>{tab}</span>
-                    <button
-                      type="button"
-                      className="adv-cv-tab-close"
-                      aria-label={`Close ${tab}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const next = openTabs.filter((t) => t !== tab);
-                        setOpenTabs(next);
-                        if (activeTab === tab) setActiveTab(next[0] || '');
-                      }}
+                {openTabs.map((tab) => {
+                  const isTabImg =
+                    /\.(png|jpe?g|svg|gif|webp)$/i.test(tab) ||
+                    (files[tab] || '').startsWith('data:image/');
+                  return (
+                    <div
+                      key={tab}
+                      role="tab"
+                      aria-selected={activeTab === tab}
+                      className={`adv-cv-tab ${activeTab === tab ? 'is-active' : ''}`}
+                      onClick={() => setActiveTab(tab)}
                     >
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
+                      {isTabImg ? <ImageIcon size={14} /> : <FileCode size={14} />}
+                      <span>{tab}</span>
+                      <button
+                        type="button"
+                        className="adv-cv-tab-close"
+                        aria-label={`Close ${tab}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = openTabs.filter((t) => t !== tab);
+                          setOpenTabs(next);
+                          if (activeTab === tab) setActiveTab(next[0] || '');
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -1746,7 +1820,10 @@ export function BlankCvWorkspace() {
                   {activeFileValue.startsWith('data:image/') ? (
                     <img src={activeFileValue} alt={activeTab} />
                   ) : (
-                    <ImageIcon size={48} />
+                    <>
+                      <ImageIcon size={48} />
+                      <p>No image uploaded for <strong>{activeTab}</strong> yet.</p>
+                    </>
                   )}
                   <p>
                     <strong>{activeTab}</strong>
@@ -1756,20 +1833,43 @@ export function BlankCvWorkspace() {
                     <code>{`<img src="${activeTab}" alt="" />`}</code> or{' '}
                     <code>{`import img from './${activeTab}'`}</code>
                   </small>
-                  <button
-                    type="button"
-                    className="dash-secondary"
-                    onClick={() => {
-                      const slashIdx = activeTab.lastIndexOf('/');
-                      setModalTarget(activeTab);
-                      setModalInput(slashIdx !== -1 ? activeTab.slice(slashIdx + 1) : activeTab);
-                      setModalFolderChoice(slashIdx !== -1 ? activeTab.slice(0, slashIdx) : '');
-                      setModalMode('rename-file');
-                    }}
-                  >
-                    <FolderInput size={14} />
-                    Organize / Move Asset
-                  </button>
+                  <div className="adv-cv-header-actions">
+                    <label className="button button-primary" style={{ cursor: 'pointer' }}>
+                      <Upload size={14} />
+                      {activeFileValue.startsWith('data:image/') ? 'Replace Image File' : `Upload Image for ${activeTab}`}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp,.png,.jpg,.jpeg,.svg"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const content = typeof reader.result === 'string' ? reader.result : '';
+                            setFiles((prev) => ({ ...prev, [activeTab]: content }));
+                            setStatus('unsaved');
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="dash-secondary"
+                      onClick={() => {
+                        const slashIdx = activeTab.lastIndexOf('/');
+                        setModalTarget(activeTab);
+                        setModalInput(slashIdx !== -1 ? activeTab.slice(slashIdx + 1) : activeTab);
+                        setModalFolderChoice(slashIdx !== -1 ? activeTab.slice(0, slashIdx) : '');
+                        setModalMode('rename-file');
+                      }}
+                    >
+                      <FolderInput size={14} />
+                      Organize / Move Asset
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="adv-cv-code-area">
