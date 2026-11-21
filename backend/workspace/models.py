@@ -43,19 +43,6 @@ class Document(models.Model):
     revision = models.PositiveIntegerField(default=1)
 
 
-class DocumentVersion(models.Model):
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='versions')
-    name = models.CharField(max_length=120)
-    content = models.JSONField(default=dict)
-    design = models.JSONField(default=dict)
-    revision = models.PositiveIntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-created_at', '-id']
-        indexes = [models.Index(fields=['document', '-created_at'])]
-
-
 class CareerProfile(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     summary = models.TextField(blank=True)
