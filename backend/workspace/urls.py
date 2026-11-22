@@ -6,6 +6,7 @@ urlpatterns = [
     path('dashboard/recent-projects/', views.RecentProjectsView.as_view()),
     path('dashboard/activity/', views.ActivityView.as_view()),
     path('dashboard/storage/', views.StorageView.as_view()),
+    path('career-profile/', views.CareerProfileView.as_view()),
     path('projects/', views.RecentProjectsView.as_view()),
     path('projects/bulk-actions/', views.ProjectBulkActionsView.as_view()),
     path('projects/<uuid:pk>/', views.ProjectDetailView.as_view()),

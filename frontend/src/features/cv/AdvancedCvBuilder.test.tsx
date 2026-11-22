@@ -365,3 +365,142 @@ it('enables ATS Checker, Job Matcher, and Grammar Checker after saving the CV an
   expect(issueTypes).toContain('Unprofessional Wording'); // "I worked"
   expect(issueTypes).toContain('Capitalization & Punctuation'); // "javascript" -> "JavaScript"
 });
+
+it('imports Career Profile into an editable copy, keeps edits isolated, and refreshes when Career Profile updates', async () => {
+  const careerPutCalls: string[] = [];
+  let careerRevision = 1;
+  let careerSummary = 'Initial profile summary.';
+  let storedContent: { files?: Record<string, string>; folders?: string[] } = {
+    files: {
+      'App.jsx': 'export default function CV() { return <article><h1>CV</h1></article>; }',
+    },
+    folders: [],
+  };
+  let storedDesign: Record<string, any> = {};
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.includes('/auth/csrf/')) return new Response(JSON.stringify({ csrfToken: 'csrf-token' }));
+      if (path.includes('/career-profile/')) {
+        if (init?.method === 'PUT') careerPutCalls.push(path);
+        return new Response(
+          JSON.stringify({
+            personal: {
+              first_name: 'Nuwandi',
+              last_name: 'Dulshara',
+              email: 'nuwandi@example.com',
+              phone: '+94 71 700 1650',
+              location: 'Sri Lanka',
+              professional_title: 'Software Engineer',
+              bio: '',
+              linkedin: '',
+              github: '',
+              portfolio: '',
+            },
+            summary: careerSummary,
+            experience: [{ company: 'Novagen', role: 'Software Engineer', location: 'Remote', start_date: '2025', end_date: '2026', current: false, description: 'Built APIs' }],
+            education: [],
+            skills: ['React', 'Django'],
+            projects: [],
+            certifications: [],
+            revision: careerRevision,
+            updated_at: '2026-11-22T10:00:00Z',
+            percent: 57,
+            sections: [],
+          })
+        );
+      }
+      if (path.endsWith('/projects/cv-import-1/document/') && (!init?.method || init.method === 'GET')) {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cv-import-1',
+              title: 'Imported CV',
+              kind: 'advanced_cv',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-22T10:00:00Z',
+              deleted_at: null,
+            },
+            content: storedContent,
+            design: storedDesign,
+            revision: 1,
+          })
+        );
+      }
+      if (path.endsWith('/projects/cv-import-1/document/') && init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body));
+        storedContent = body.content || storedContent;
+        storedDesign = body.design || storedDesign;
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cv-import-1',
+              title: body.title || 'Imported CV',
+              kind: 'advanced_cv',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-22T10:05:00Z',
+              deleted_at: null,
+            },
+            content: storedContent,
+            design: storedDesign,
+            revision: 2,
+          })
+        );
+      }
+      return new Response(JSON.stringify(emptyPage));
+    })
+  );
+
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/dashboard/advanced-cv/cv-import-1']}>
+        <Routes>
+          <Route path="/dashboard/*" element={<DashboardPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+  const importBtn = await screen.findByRole('button', { name: 'Import from Career Profile' });
+  await userEvent.click(importBtn);
+
+  const applyBtn = await screen.findByRole('button', { name: 'Import selected sections' });
+  await userEvent.click(applyBtn);
+
+  const jsonEditor = await screen.findByLabelText('Code editor for career-profile.json');
+  expect((jsonEditor as HTMLTextAreaElement).value).toContain('Initial profile summary.');
+
+  // Local edits to career-profile.json do not mutate the Career Profile
+  fireEvent.change(jsonEditor, {
+    target: { value: (jsonEditor as HTMLTextAreaElement).value.replace('Initial profile summary.', 'CV-only summary edit.') },
+  });
+  expect(careerPutCalls).toHaveLength(0);
+
+  // Simulate Career Profile update on server and trigger refresh check
+  careerRevision = 2;
+  careerSummary = 'Updated career profile summary.';
+  await client.invalidateQueries({ queryKey: ['workspace', 'career-profile'] });
+
+  const reviewBtn = await screen.findByRole('button', { name: 'Review & refresh' });
+  await userEvent.click(reviewBtn);
+
+  expect(await screen.findByText(/Your Career Profile changed since you imported it/)).toBeVisible();
+  expect(screen.getByText(/You edited career-profile.json after importing it/)).toBeVisible();
+
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh imported information' }));
+
+  await waitFor(() => {
+    const updatedEditor = screen.getByLabelText('Code editor for career-profile.json') as HTMLTextAreaElement;
+    expect(updatedEditor.value).toContain('Updated career profile summary.');
+  });
+  expect(screen.getByText('career-profile.previous.json')).toBeVisible();
+  expect(careerPutCalls).toHaveLength(0);
+}, 15000);

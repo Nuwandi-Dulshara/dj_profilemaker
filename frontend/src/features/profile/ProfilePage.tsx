@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { User, Lock, Settings, ChevronRight, Save, LogOut, Mail, Phone, MapPin, Linkedin, Github, Globe, Shield, AlertTriangle } from 'lucide-react';
@@ -6,6 +6,8 @@ import { api } from '../../services/api';
 import { useSession } from '../auth/AuthProvider';
 import { useWorkspace } from '../dashboard/data';
 import { QueryState } from '../dashboard/QueryState';
+import type { CareerProfileData } from '../cv/careerProfile';
+import { CareerProfileEditor } from './CareerProfileEditor';
 import './profile.css';
 
 export function ProfilePage() {
@@ -50,28 +52,50 @@ export function ProfilePage() {
     notifications: true,
   });
 
-  const profile = useWorkspace<any>('career-profile', '/career-profile/');
+  const profile = useWorkspace<CareerProfileData>('career-profile', '/career-profile/');
+
+  // Personal details are stored in the shared Career Profile, so hydrate the form from it.
+  useEffect(() => {
+    const p = profile.data?.personal;
+    if (!p) return;
+    setPersonal({
+      firstName: p.first_name ?? '',
+      lastName: p.last_name ?? '',
+      email: p.email ?? '',
+      phone: p.phone ?? '',
+      location: p.location ?? '',
+      professionalTitle: p.professional_title ?? '',
+      bio: p.bio ?? '',
+      linkedin: p.linkedin ?? '',
+      github: p.github ?? '',
+      portfolio: p.portfolio ?? '',
+    });
+  }, [profile.data?.revision, profile.data?.personal?.first_name, profile.data?.personal?.last_name]);
 
   async function savePersonal() {
     setPending(true);
     setError('');
     setSuccess('');
     try {
-      await api('/auth/profile/', {
-        method: 'PATCH',
+      await api('/career-profile/', {
+        method: 'PUT',
         body: JSON.stringify({
-          first_name: personal.firstName,
-          last_name: personal.lastName,
-          phone: personal.phone,
-          location: personal.location,
-          professional_title: personal.professionalTitle,
-          bio: personal.bio,
-          linkedin: personal.linkedin,
-          github: personal.github,
-          portfolio: personal.portfolio,
+          personal: {
+            first_name: personal.firstName,
+            last_name: personal.lastName,
+            phone: personal.phone,
+            location: personal.location,
+            professional_title: personal.professionalTitle,
+            bio: personal.bio,
+            linkedin: personal.linkedin,
+            github: personal.github,
+            portfolio: personal.portfolio,
+          },
         }),
       });
-      setSuccess('Personal information updated successfully.');
+      await queryClient.invalidateQueries({ queryKey: ['workspace'] });
+      await queryClient.invalidateQueries({ queryKey: ['session'] });
+      setSuccess('Personal information saved to your Career Profile.');
       window.setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError((err as Error).message);
@@ -267,17 +291,17 @@ export function ProfilePage() {
                     <span className="career-stat-value">{profile.data?.percent || 0}%</span>
                   </div>
                   <p className="dash-caption">
-                    Complete your Career Profile to quickly import information into new documents.
+                    Enter your professional information once here. Use <strong>Import from Career Profile</strong> in the CV Builder or Cover Letter Builder to reuse it.
                   </p>
                 </div>
-                
-                <div className="profile-form">
-                  <p className="dash-info">
-                    <Shield size={16} />
-                    Full Career Profile Vault editing is available in the Advanced CV Builder under "Import Profile".
-                    Changes here will not automatically overwrite existing CVs or cover letters.
-                  </p>
-                </div>
+
+                <p className="dash-info">
+                  <Shield size={16} />
+                  Importing creates an editable copy inside the document, so editing a CV or cover letter never changes this profile, and changing this profile
+                  never overwrites an existing document until you choose to refresh it.
+                </p>
+
+                {profile.data && <CareerProfileEditor profile={profile.data} />}
               </QueryState>
             </section>
           )}

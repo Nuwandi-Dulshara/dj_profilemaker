@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Activity, Document, Folder, Notification, Project
 from .serializers import ActivitySerializer, FolderSerializer, NotificationSerializer, ProjectSerializer
-from .services import bulk_change_projects, career_summary, change_project, create_project
+from .services import bulk_change_projects, career_profile_payload, career_summary, change_project, create_project, update_career_profile
 
 
 class Pagination(PageNumberPagination):
@@ -60,8 +60,18 @@ class SummaryView(PrivateView):
             'counts': counts,
             'project_stats': project_stats,
             'profile': career_summary(request.user),
-            'workflows': {'advanced_cv': True, 'cover_letter': True, 'profile': False},
+            'workflows': {'advanced_cv': True, 'cover_letter': True, 'profile': True},
         })
+
+
+class CareerProfileView(PrivateView):
+    """Shared source of professional information for the CV and cover letter builders."""
+
+    def get(self, request):
+        return Response(career_profile_payload(request.user))
+
+    def put(self, request):
+        return Response(update_career_profile(request.user, request.data))
 
 
 class RecentProjectsView(PrivateView):

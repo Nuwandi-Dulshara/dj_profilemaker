@@ -45,12 +45,15 @@ class Document(models.Model):
 
 class CareerProfile(models.Model):
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    personal = models.JSONField(default=dict)
     summary = models.TextField(blank=True)
     experience = models.JSONField(default=list)
     education = models.JSONField(default=list)
     skills = models.JSONField(default=list)
     projects = models.JSONField(default=list)
     certifications = models.JSONField(default=list)
+    revision = models.PositiveIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class Activity(models.Model):
