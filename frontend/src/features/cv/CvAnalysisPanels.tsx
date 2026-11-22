@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Briefcase,
@@ -102,6 +102,7 @@ export function CvAnalysisDrawer({
   onClose,
   onSaveNow,
   documentLabel = 'CV',
+  defaultJobDescription = '',
 }: {
   activeTool: Exclude<ActiveAnalysisTool, null>;
   savedRenderedHtml: string;
@@ -110,10 +111,17 @@ export function CvAnalysisDrawer({
   onClose: () => void;
   onSaveNow: () => void;
   documentLabel?: 'CV' | 'Cover Letter';
+  defaultJobDescription?: string;
 }) {
-  const [jobDescription, setJobDescription] = useState('');
+  const [jobDescription, setJobDescription] = useState(defaultJobDescription);
   const [jobResult, setJobResult] = useState<JobMatchAnalysisResult | null>(null);
   const [grammarFilter, setGrammarFilter] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (defaultJobDescription && !jobDescription.trim()) {
+      setJobDescription(defaultJobDescription);
+    }
+  }, [defaultJobDescription, jobDescription]);
 
   const atsResult = useMemo(
     () =>

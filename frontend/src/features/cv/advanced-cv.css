@@ -1305,3 +1305,82 @@
   color: #78350f;
   font-size: 0.84rem;
 }
+
+.adv-cv-company-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.adv-cv-company-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.adv-cv-company-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #0f172a;
+}
+
+.adv-cv-company-title div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.adv-cv-company-title span {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.adv-cv-company-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.adv-cv-company-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.adv-cv-company-grid input,
+.adv-cv-company-grid textarea {
+  font: inherit;
+  font-weight: 400;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.adv-cv-company-grid .is-wide {
+  grid-column: 1 / -1;
+}
+
+.adv-cv-company-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .adv-cv-company-grid {
+    grid-template-columns: 1fr;
+  }
+}
