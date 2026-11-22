@@ -5,6 +5,7 @@ import {
   Archive,
   ArrowLeft,
   BookOpen,
+  Building2,
   ChevronDown,
   ChevronRight,
   Code2,
@@ -33,6 +34,7 @@ import {
   Star,
   Trash2,
   Upload,
+  UserCheck,
   X,
 } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
@@ -54,6 +56,16 @@ import {
 import { MonacoCodeEditor } from '../cv/MonacoCodeEditor';
 import { compileAndRenderCvWorkspace, exportRenderedCvToDocx } from '../cv/cvRuntime';
 import { openRenderedPdfInNewTab } from '../cv/pdfGenerator';
+import { CareerImportDialog } from '../cv/CareerImportDialog';
+import type { CareerImportResult, CareerProfileData, DocumentImports } from '../cv/careerProfile';
+import { CompanyDetailsPanel } from './CompanyDetailsPanel';
+import {
+  COMPANY_DETAILS_FILE,
+  applyCompanyDetailsToWorkspace,
+  buildCompanyDetailsJson,
+  normalizeCompanyDetails,
+  type CompanyDetails,
+} from './companyDetails';
 import '../cv/advanced-cv.css';
 
 interface DocumentPayload {
@@ -566,6 +578,59 @@ export function BlankCoverLetterWorkspace() {
   const savedTitle = useRef('Untitled');
   const [files, setFiles] = useState<Record<string, string>>({});
   const [savedFiles, setSavedFiles] = useState<Record<string, string>>({});
+  // Career Profile / CV import bookkeeping lives in the document `design`, so it is saved with the project.
+  const [design, setDesign] = useState<Record<string, any>>({});
+  const [importOpen, setImportOpen] = useState(false);
+  const [companyPanelOpen, setCompanyPanelOpen] = useState(false);
+  const appliedCompanyRef = useRef<CompanyDetails | null>(null);
+  const companyDetails = useMemo(
+    () => normalizeCompanyDetails(design.companyDetails),
+    [design.companyDetails]
+  );
+  const careerProfileQuery = useWorkspace<CareerProfileData>('career-profile', '/career-profile/');
+  const imports: DocumentImports = (design.imports as DocumentImports) || {};
+  const careerProfileStale = Boolean(
+    imports.career_profile &&
+      typeof careerProfileQuery.data?.revision === 'number' &&
+      careerProfileQuery.data.revision > imports.career_profile.revision
+  );
+
+  // Writes the imported copy into the project. The original Career Profile / CV is never modified.
+  function applyCareerImport(result: CareerImportResult) {
+    setFiles((prev) => ({ ...prev, ...result.files }));
+    setDesign((prev) => ({ ...prev, imports: { ...((prev.imports as DocumentImports) || {}), ...result.imports } }));
+    setOpenTabs((prev) => (prev.includes(result.openFile) ? prev : [...prev, result.openFile]));
+    setActiveTab(result.openFile);
+    setStatus('unsaved');
+    setMessage('');
+    setToast(result.message);
+  }
+
+  function handleCompanyDetailsChange(next: CompanyDetails) {
+    setDesign((prev) => ({ ...prev, companyDetails: next }));
+    setFiles((prev) =>
+      Object.prototype.hasOwnProperty.call(prev, COMPANY_DETAILS_FILE)
+        ? { ...prev, [COMPANY_DETAILS_FILE]: buildCompanyDetailsJson(next) }
+        : prev
+    );
+    setStatus('unsaved');
+  }
+
+  function handleAutoFillCompanyDetails() {
+    const result = applyCompanyDetailsToWorkspace(files, companyDetails, appliedCompanyRef.current);
+    appliedCompanyRef.current = companyDetails;
+    setFiles(result.files);
+    setDesign((prev) => ({ ...prev, companyDetails }));
+    setOpenTabs((prev) => {
+      const next = [...prev];
+      if (!next.includes(result.targetFile)) next.push(result.targetFile);
+      return next;
+    });
+    setActiveTab(result.targetFile);
+    setStatus('unsaved');
+    setMessage('');
+    setToast(result.summary);
+  }
   const [folders, setFolders] = useState<string[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [openTabs, setOpenTabs] = useState<string[]>([]);
@@ -629,6 +694,12 @@ export function BlankCoverLetterWorkspace() {
         const normalizedFolders = computeAllFolderPaths(rawFolders, Object.keys(rawFiles));
         setFiles(rawFiles);
         setSavedFiles(rawFiles);
+        const loadedDesign =
+          res.design && typeof res.design === 'object' ? (res.design as Record<string, any>) : {};
+        setDesign(loadedDesign);
+        appliedCompanyRef.current = loadedDesign.companyDetails
+          ? normalizeCompanyDetails(loadedDesign.companyDetails)
+          : null;
         setFolders(normalizedFolders);
         setExpandedFolders(new Set(normalizedFolders));
         const fileKeys = Object.keys(rawFiles);
@@ -669,7 +740,7 @@ export function BlankCoverLetterWorkspace() {
               files: nextFiles,
               folders: nextFolders,
             },
-            design: {},
+            design,
           }),
         });
         setTitle(res.project.title);
@@ -682,7 +753,7 @@ export function BlankCoverLetterWorkspace() {
         setMessage((err as Error).message);
       }
     },
-    [projectId, title, files, folders, refresh]
+    [projectId, title, files, folders, design, refresh]
   );
 
   // Support Ctrl + S for saving and Ctrl + P for clean A4 PDF printing
@@ -1515,6 +1586,23 @@ export function BlankCoverLetterWorkspace() {
                 <ImageIcon size={16} />
                 Upload Images
               </button>
+              <button
+                type="button"
+                className="adv-cv-ribbon-btn"
+                onClick={() => setImportOpen(true)}
+              >
+                <UserCheck size={16} />
+                Import from Career Profile / CV
+              </button>
+              <button
+                type="button"
+                className={`adv-cv-ribbon-btn ${companyPanelOpen ? 'is-active' : ''}`}
+                aria-expanded={companyPanelOpen}
+                onClick={() => setCompanyPanelOpen((open) => !open)}
+              >
+                <Building2 size={16} />
+                Company Details
+              </button>
               <span className="adv-cv-ribbon-divider" aria-hidden="true" />
               <button
                 type="button"
@@ -1633,6 +1721,36 @@ export function BlankCoverLetterWorkspace() {
         </div>
       </section>
 
+      {careerProfileStale && (
+        <p className="adv-cv-import-banner" role="status">
+          <UserCheck size={16} />
+          <span>Your Career Profile has changed since you imported it into this cover letter. Your imported copy is unchanged until you refresh it.</span>
+          <button type="button" className="dash-secondary" onClick={() => setImportOpen(true)}>
+            Review &amp; refresh
+          </button>
+        </p>
+      )}
+      {importOpen && (
+        <CareerImportDialog
+          kind="cover_letter"
+          files={files}
+          imports={imports}
+          onClose={() => setImportOpen(false)}
+          onApply={applyCareerImport}
+        />
+      )}
+
+      {companyPanelOpen && (
+        <CompanyDetailsPanel
+          details={companyDetails}
+          saving={status === 'saving'}
+          onChange={handleCompanyDetailsChange}
+          onAutoFill={handleAutoFillCompanyDetails}
+          onSave={() => void handleSave()}
+          onClose={() => setCompanyPanelOpen(false)}
+        />
+      )}
+
       {/* COVER LETTER ANALYSIS TOOLS (ENABLED AFTER SAVING, ANALYZING SAVED RENDERED COVER LETTER) */}
       <CvAnalysisToolbar
         documentLabel="Cover Letter"
@@ -1650,6 +1768,7 @@ export function BlankCoverLetterWorkspace() {
           savedRenderedHtml={savedCompiledPreview.html}
           savedRenderedCss={savedCompiledPreview.css}
           hasUnsavedChanges={status === 'unsaved'}
+          defaultJobDescription={companyDetails.jobDescription}
           onClose={() => setActiveAnalysisTool(null)}
           onSaveNow={() => void handleSave()}
         />

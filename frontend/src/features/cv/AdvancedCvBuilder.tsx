@@ -32,6 +32,7 @@ import {
   Star,
   Trash2,
   Upload,
+  UserCheck,
   X,
 } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
@@ -53,6 +54,8 @@ import {
 import { MonacoCodeEditor } from './MonacoCodeEditor';
 import { compileAndRenderCvWorkspace, exportRenderedCvToDocx } from './cvRuntime';
 import { openRenderedPdfInNewTab } from './pdfGenerator';
+import { CareerImportDialog } from './CareerImportDialog';
+import type { CareerImportResult, CareerProfileData, DocumentImports } from './careerProfile';
 import './advanced-cv.css';
 
 interface DocumentPayload {
@@ -565,6 +568,27 @@ export function BlankCvWorkspace() {
   const savedTitle = useRef('Untitled');
   const [files, setFiles] = useState<Record<string, string>>({});
   const [savedFiles, setSavedFiles] = useState<Record<string, string>>({});
+  // Career Profile / CV import bookkeeping lives in the document `design`, so it is saved with the project.
+  const [design, setDesign] = useState<Record<string, any>>({});
+  const [importOpen, setImportOpen] = useState(false);
+  const careerProfileQuery = useWorkspace<CareerProfileData>('career-profile', '/career-profile/');
+  const imports: DocumentImports = (design.imports as DocumentImports) || {};
+  const careerProfileStale = Boolean(
+    imports.career_profile &&
+      typeof careerProfileQuery.data?.revision === 'number' &&
+      careerProfileQuery.data.revision > imports.career_profile.revision
+  );
+
+  // Writes the imported copy into the project. The original Career Profile is never modified.
+  function applyCareerImport(result: CareerImportResult) {
+    setFiles((prev) => ({ ...prev, ...result.files }));
+    setDesign((prev) => ({ ...prev, imports: { ...((prev.imports as DocumentImports) || {}), ...result.imports } }));
+    setOpenTabs((prev) => (prev.includes(result.openFile) ? prev : [...prev, result.openFile]));
+    setActiveTab(result.openFile);
+    setStatus('unsaved');
+    setMessage('');
+    setToast(result.message);
+  }
   const [folders, setFolders] = useState<string[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [openTabs, setOpenTabs] = useState<string[]>([]);
@@ -628,6 +652,7 @@ export function BlankCvWorkspace() {
         const normalizedFolders = computeAllFolderPaths(rawFolders, Object.keys(rawFiles));
         setFiles(rawFiles);
         setSavedFiles(rawFiles);
+        setDesign(res.design && typeof res.design === 'object' ? (res.design as Record<string, any>) : {});
         setFolders(normalizedFolders);
         setExpandedFolders(new Set(normalizedFolders));
         const fileKeys = Object.keys(rawFiles);
@@ -668,7 +693,7 @@ export function BlankCvWorkspace() {
               files: nextFiles,
               folders: nextFolders,
             },
-            design: {},
+            design,
           }),
         });
         setTitle(res.project.title);
@@ -681,7 +706,7 @@ export function BlankCvWorkspace() {
         setMessage((err as Error).message);
       }
     },
-    [projectId, title, files, folders, refresh]
+    [projectId, title, files, folders, design, refresh]
   );
 
   // Support Ctrl + S for saving and Ctrl + P for clean A4 PDF printing
@@ -1528,6 +1553,14 @@ export function BlankCvWorkspace() {
                 <ImageIcon size={16} />
                 Upload Images
               </button>
+              <button
+                type="button"
+                className="adv-cv-ribbon-btn"
+                onClick={() => setImportOpen(true)}
+              >
+                <UserCheck size={16} />
+                Import from Career Profile
+              </button>
               <span className="adv-cv-ribbon-divider" aria-hidden="true" />
               <button
                 type="button"
@@ -1645,6 +1678,25 @@ export function BlankCvWorkspace() {
           )}
         </div>
       </section>
+
+      {careerProfileStale && (
+        <p className="adv-cv-import-banner" role="status">
+          <UserCheck size={16} />
+          <span>Your Career Profile has changed since you imported it into this CV. Your imported copy is unchanged until you refresh it.</span>
+          <button type="button" className="dash-secondary" onClick={() => setImportOpen(true)}>
+            Review &amp; refresh
+          </button>
+        </p>
+      )}
+      {importOpen && (
+        <CareerImportDialog
+          kind="cv"
+          files={files}
+          imports={imports}
+          onClose={() => setImportOpen(false)}
+          onApply={applyCareerImport}
+        />
+      )}
 
       {/* STEP 7: CV ANALYSIS TOOLS (ENABLED AFTER SAVING CV, ANALYZING SAVED RENDERED CV) */}
       <CvAnalysisToolbar

@@ -212,3 +212,297 @@ it('creates a new blank Cover Letter with default name Untitled, empty workspace
   expect(await screen.findByText('Staff Backend Cover Letter')).toBeVisible();
 }, 15000);
 
+it('imports from Career Profile and from an existing CV into editable cover letter files', async () => {
+  let storedContent: { files?: Record<string, string>; folders?: string[] } = {
+    files: {
+      'letter.jsx': 'export default function CoverLetter() { return <article><p>Dear Hiring Manager,</p></article>; }',
+    },
+    folders: [],
+  };
+  let storedDesign: Record<string, any> = {};
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.includes('/auth/csrf/')) return new Response(JSON.stringify({ csrfToken: 'csrf-token' }));
+      if (path.includes('/career-profile/')) {
+        return new Response(
+          JSON.stringify({
+            personal: {
+              first_name: 'Nuwandi',
+              last_name: 'Dulshara',
+              email: 'nuwandi@example.com',
+              phone: '+94 71 700 1650',
+              location: 'Sri Lanka',
+              professional_title: 'Software Engineer',
+              bio: '',
+              linkedin: '',
+              github: '',
+              portfolio: '',
+            },
+            summary: 'Full-Stack Engineer with React and Django.',
+            experience: [],
+            education: [],
+            skills: ['React', 'Django'],
+            projects: [],
+            certifications: [],
+            revision: 1,
+            updated_at: '2026-11-22T10:00:00Z',
+            percent: 43,
+            sections: [],
+          })
+        );
+      }
+      if (path.includes('/projects/?kind=advanced_cv')) {
+        return new Response(
+          JSON.stringify({
+            count: 1,
+            results: [
+              {
+                id: 'cv-source-1',
+                title: 'Backend CV',
+                kind: 'advanced_cv',
+                favorite: false,
+                archived: false,
+                folder: null,
+                folder_name: null,
+                updated_at: '2026-11-22T09:00:00Z',
+                deleted_at: null,
+              },
+            ],
+            next: null,
+            previous: null,
+          })
+        );
+      }
+      if (path.endsWith('/projects/cv-source-1/document/')) {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cv-source-1',
+              title: 'Backend CV',
+              kind: 'advanced_cv',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-22T09:00:00Z',
+              deleted_at: null,
+            },
+            content: {
+              files: {
+                'App.jsx':
+                  'export default function CV() { return <article><h1>Nuwandi Dulshara</h1><p>nuwandi@example.com | +94 71 700 1650</p><section><h2>SKILLS</h2><p>Python, FastAPI, PostgreSQL</p></section></article>; }',
+              },
+              folders: [],
+            },
+            design: {},
+            revision: 1,
+          })
+        );
+      }
+      if (path.endsWith('/projects/cl-import-1/document/') && (!init?.method || init.method === 'GET')) {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cl-import-1',
+              title: 'Target Cover Letter',
+              kind: 'cover_letter',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-22T10:00:00Z',
+              deleted_at: null,
+            },
+            content: storedContent,
+            design: storedDesign,
+            revision: 1,
+          })
+        );
+      }
+      if (path.endsWith('/projects/cl-import-1/document/') && init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body));
+        storedContent = body.content || storedContent;
+        storedDesign = body.design || storedDesign;
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cl-import-1',
+              title: body.title || 'Target Cover Letter',
+              kind: 'cover_letter',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-22T10:05:00Z',
+              deleted_at: null,
+            },
+            content: storedContent,
+            design: storedDesign,
+            revision: 2,
+          })
+        );
+      }
+      return new Response(JSON.stringify(emptyPage));
+    })
+  );
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/dashboard/cover-letters/cl-import-1']}>
+        <Routes>
+          <Route path="/dashboard/*" element={<DashboardPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Import from Career Profile / CV' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Import selected sections' }));
+
+  const profileJsonEditor = await screen.findByLabelText('Code editor for career-profile.json');
+  expect((profileJsonEditor as HTMLTextAreaElement).value).toContain('Full-Stack Engineer with React and Django.');
+
+  // Now also import from an existing CV
+  await userEvent.click(screen.getByRole('button', { name: 'Import from Career Profile / CV' }));
+  await userEvent.click(screen.getByRole('tab', { name: 'An existing CV' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Import from CV' }));
+
+  const cvJsonEditor = await screen.findByLabelText('Code editor for cv-import.json');
+  expect((cvJsonEditor as HTMLTextAreaElement).value).toContain('Nuwandi Dulshara');
+  expect((cvJsonEditor as HTMLTextAreaElement).value).toContain('Python');
+}, 15000);
+
+it('manages Company Details panel, auto-fills into cover letter, allows editing, and saves with the project', async () => {
+  const putPayloads: any[] = [];
+  let storedContent: { files?: Record<string, string>; folders?: string[] } = {
+    files: {
+      'letter.jsx':
+        'export default function CoverLetter() { return <article><header><h1>Nuwandi Dulshara</h1></header><p>Dear Hiring Manager,</p><p>I am excited to apply.</p></article>; }',
+    },
+    folders: [],
+  };
+  let storedDesign: Record<string, any> = {};
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.includes('/auth/csrf/')) return new Response(JSON.stringify({ csrfToken: 'csrf-token' }));
+      if (path.includes('/career-profile/')) {
+        return new Response(
+          JSON.stringify({
+            personal: {},
+            summary: '',
+            experience: [],
+            education: [],
+            skills: [],
+            projects: [],
+            certifications: [],
+            revision: 1,
+            updated_at: null,
+            percent: 0,
+            sections: [],
+          })
+        );
+      }
+      if (path.endsWith('/projects/cl-company-1/document/') && (!init?.method || init.method === 'GET')) {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cl-company-1',
+              title: 'Company Targeted Letter',
+              kind: 'cover_letter',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-22T10:00:00Z',
+              deleted_at: null,
+            },
+            content: storedContent,
+            design: storedDesign,
+            revision: 1,
+          })
+        );
+      }
+      if (path.endsWith('/projects/cl-company-1/document/') && init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body));
+        putPayloads.push(body);
+        storedContent = body.content || storedContent;
+        storedDesign = body.design || storedDesign;
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cl-company-1',
+              title: body.title || 'Company Targeted Letter',
+              kind: 'cover_letter',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-22T10:05:00Z',
+              deleted_at: null,
+            },
+            content: storedContent,
+            design: storedDesign,
+            revision: 2,
+          })
+        );
+      }
+      return new Response(JSON.stringify(emptyPage));
+    })
+  );
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/dashboard/cover-letters/cl-company-1']}>
+        <Routes>
+          <Route path="/dashboard/*" element={<DashboardPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+  const toggleBtn = await screen.findByRole('button', { name: 'Company Details' });
+  await userEvent.click(toggleBtn);
+
+  const panel = await screen.findByRole('region', { name: 'Company Details Panel' });
+  expect(panel).toBeVisible();
+
+  await userEvent.type(screen.getByLabelText('Company Name'), 'Acme Corp');
+  await userEvent.type(screen.getByLabelText('Job Title'), 'Staff Engineer');
+  await userEvent.type(screen.getByLabelText('Hiring Manager (optional)'), 'Jane Doe');
+  await userEvent.type(screen.getByLabelText('Company Address (optional)'), '123 Innovation Way');
+  await userEvent.type(screen.getByLabelText('Job Description'), 'Looking for React and TypeScript expertise.');
+
+  await userEvent.click(screen.getByRole('button', { name: 'Auto-Fill Cover Letter' }));
+
+  const letterEditor = (await screen.findByLabelText('Code editor for letter.jsx')) as HTMLTextAreaElement;
+  expect(letterEditor.value).toContain('Acme Corp');
+  expect(letterEditor.value).toContain('Staff Engineer');
+  expect(letterEditor.value).toContain('Jane Doe');
+  expect(letterEditor.value).toContain('123 Innovation Way');
+  expect(letterEditor.value).toContain('Dear Jane Doe,');
+  expect(screen.getByText('company-details.json')).toBeVisible();
+
+  // Edit company name and re-apply Auto-Fill
+  const companyInput = screen.getByLabelText('Company Name');
+  await userEvent.clear(companyInput);
+  await userEvent.type(companyInput, 'Beta Labs');
+  await userEvent.click(screen.getByRole('button', { name: 'Auto-Fill Cover Letter' }));
+  expect(letterEditor.value).toContain('Beta Labs');
+  expect(letterEditor.value).not.toContain('Acme Corp');
+
+  // Save details with the cover letter project
+  await userEvent.click(screen.getByRole('button', { name: 'Save Details' }));
+  await waitFor(() => expect(putPayloads).toHaveLength(1));
+  expect(putPayloads[0].design.companyDetails).toEqual({
+    companyName: 'Beta Labs',
+    jobTitle: 'Staff Engineer',
+    hiringManager: 'Jane Doe',
+    companyAddress: '123 Innovation Way',
+    jobDescription: 'Looking for React and TypeScript expertise.',
+  });
+}, 15000);
+

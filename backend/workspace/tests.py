@@ -35,7 +35,7 @@ class DashboardTests(TestCase):
         Project.objects.create(owner=self.user, title='Deleted', kind='advanced_cv', deleted_at=timezone.now())
         data = self.client.get('/api/dashboard/summary/').json()
         self.assertEqual(data['counts'], {'total': 2, 'advanced_cv': 1, 'cover_letter': 1, 'deleted': 1})
-        self.assertEqual(data['workflows'], {'advanced_cv': True, 'cover_letter': True, 'profile': False})
+        self.assertEqual(data['workflows'], {'advanced_cv': True, 'cover_letter': True, 'profile': True})
 
     def test_search_pagination_and_state_filters(self):
         for i in range(8):
@@ -253,4 +253,62 @@ class DashboardTests(TestCase):
         self.assertIn('components/Header.jsx', data['content']['files'])
         self.assertIn('styles.css', data['content']['files'])
         self.assertIn('components', data['content']['folders'])
+
+    def test_career_profile_requires_login_and_returns_empty_defaults(self):
+        self.client.logout()
+        self.assertEqual(self.client.get('/api/career-profile/').status_code, 403)
+        self.client.force_login(self.user)
+        data = self.client.get('/api/career-profile/').json()
+        self.assertEqual(data['revision'], 0)
+        self.assertEqual(data['personal']['first_name'], 'Alex')
+        self.assertEqual(data['personal']['email'], 'owner@example.test')
+        self.assertEqual(data['experience'], [])
+        self.assertEqual(data['skills'], [])
+
+    def test_career_profile_update_cleans_data_and_bumps_revision_only_on_change(self):
+        payload = {
+            'personal': {'phone': ' +1 555 0100 ', 'location': 'Colombo', 'first_name': 'Alexandra'},
+            'summary': ' Backend engineer. ',
+            'skills': 'Python, Django\nPython, React',
+            'experience': [
+                {'company': 'Acme', 'role': 'Engineer', 'description': 'Built APIs', 'current': True, 'unexpected': 'dropped'},
+                {'company': '', 'role': ''},
+            ],
+            'education': [{'institution': 'University', 'degree': 'BSc'}],
+        }
+        first = self.mutate('/api/career-profile/', payload, 'put')
+        self.assertEqual(first.status_code, 200)
+        body = first.json()
+        self.assertEqual(body['revision'], 2)
+        self.assertEqual(body['personal']['phone'], '+1 555 0100')
+        self.assertEqual(body['personal']['first_name'], 'Alexandra')
+        self.assertEqual(body['summary'], 'Backend engineer.')
+        self.assertEqual(body['skills'], ['Python', 'Django', 'React'])
+        self.assertEqual(len(body['experience']), 1)
+        self.assertNotIn('unexpected', body['experience'][0])
+        self.assertTrue(body['experience'][0]['current'])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, 'Alexandra')
+
+        same = self.mutate('/api/career-profile/', payload, 'put').json()
+        self.assertEqual(same['revision'], 2)
+
+        edited = self.mutate('/api/career-profile/', {'summary': 'Updated summary'}, 'put').json()
+        self.assertEqual(edited['revision'], 3)
+        self.assertEqual(edited['skills'], ['Python', 'Django', 'React'])
+
+    def test_career_profile_validation_and_csrf(self):
+        self.assertEqual(self.client.put('/api/career-profile/', {'summary': 'x'}, format='json').status_code, 403)
+        self.assertEqual(self.mutate('/api/career-profile/', {'experience': 'nope'}, 'put').status_code, 400)
+        self.assertEqual(self.mutate('/api/career-profile/', {'experience': ['nope']}, 'put').status_code, 400)
+        self.assertEqual(self.mutate('/api/career-profile/', {'personal': {'first_name': ' '}}, 'put').status_code, 400)
+        self.assertEqual(self.mutate('/api/career-profile/', {'skills': {'a': 1}}, 'put').status_code, 400)
+
+    def test_career_profile_is_private_to_each_user(self):
+        self.mutate('/api/career-profile/', {'summary': 'Private summary'}, 'put')
+        other = APIClient()
+        other.force_login(self.other)
+        data = other.get('/api/career-profile/').json()
+        self.assertEqual(data['summary'], '')
+        self.assertEqual(data['revision'], 0)
 

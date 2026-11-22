@@ -17,6 +17,136 @@ def career_summary(user):
     return {'sections': sections, 'completed': completed, 'total': 7, 'percent': round(completed / 7 * 100)}
 
 
+# ---------------------------------------------------------------------------
+# Career Profile: the single shared source of professional information that
+# the CV Builder and Cover Letter Builder import from.
+# ---------------------------------------------------------------------------
+PERSONAL_FIELDS = ['phone', 'location', 'professional_title', 'linkedin', 'github', 'portfolio', 'bio']
+LIST_SECTION_FIELDS = {
+    'experience': ['company', 'role', 'location', 'start_date', 'end_date', 'description'],
+    'education': ['institution', 'degree', 'field', 'start_date', 'end_date', 'details'],
+    'projects': ['name', 'link', 'technologies', 'description'],
+    'certifications': ['name', 'issuer', 'date'],
+}
+LONG_TEXT_FIELDS = {'description', 'details', 'bio'}
+MAX_LIST_ITEMS = 50
+MAX_SKILLS = 100
+
+
+def _clean_text(value, limit):
+    return value.strip()[:limit] if isinstance(value, str) else ''
+
+
+def _clean_list_section(key, value):
+    if not isinstance(value, list):
+        raise ValidationError({key: 'Must be a list.'})
+    if len(value) > MAX_LIST_ITEMS:
+        raise ValidationError({key: f'Add at most {MAX_LIST_ITEMS} entries.'})
+    cleaned = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValidationError({key: 'Each entry must be an object.'})
+        entry = {f: _clean_text(item.get(f), 5000 if f in LONG_TEXT_FIELDS else 300) for f in LIST_SECTION_FIELDS[key]}
+        if key == 'experience':
+            entry['current'] = bool(item.get('current'))
+        if any(v for k, v in entry.items() if k != 'current'):
+            cleaned.append(entry)
+    return cleaned
+
+
+def _clean_skills(value):
+    if isinstance(value, str):
+        value = [part for chunk in value.splitlines() for part in chunk.split(',')]
+    if not isinstance(value, list):
+        raise ValidationError({'skills': 'Must be a list.'})
+    seen, cleaned = set(), []
+    for raw in value:
+        skill = _clean_text(raw, 60)
+        if skill and skill.lower() not in seen:
+            seen.add(skill.lower())
+            cleaned.append(skill)
+    if len(cleaned) > MAX_SKILLS:
+        raise ValidationError({'skills': f'Add at most {MAX_SKILLS} skills.'})
+    return cleaned
+
+
+def career_profile_payload(user):
+    profile = CareerProfile.objects.filter(owner=user).first()
+    stored = profile.personal if profile and isinstance(profile.personal, dict) else {}
+    personal = {'first_name': user.first_name, 'last_name': user.last_name, 'email': user.email}
+    personal.update({f: stored.get(f, '') for f in PERSONAL_FIELDS})
+    return {
+        'personal': personal,
+        'summary': profile.summary if profile else '',
+        'experience': profile.experience if profile else [],
+        'education': profile.education if profile else [],
+        'skills': profile.skills if profile else [],
+        'projects': profile.projects if profile else [],
+        'certifications': profile.certifications if profile else [],
+        'revision': profile.revision if profile else 0,
+        'updated_at': profile.updated_at if profile else None,
+        **career_summary(user),
+    }
+
+
+@transaction.atomic
+def update_career_profile(user, data):
+    """Apply a partial update. `revision` only increases when something really changed,
+    which is how imported copies know they are out of date."""
+    if not isinstance(data, dict):
+        raise ValidationError({'detail': 'Send a JSON object.'})
+    profile, _ = CareerProfile.objects.select_for_update().get_or_create(owner=user)
+    changed = False
+
+    if 'personal' in data:
+        incoming = data['personal']
+        if not isinstance(incoming, dict):
+            raise ValidationError({'personal': 'Must be an object.'})
+        stored = dict(profile.personal) if isinstance(profile.personal, dict) else {}
+        for field in PERSONAL_FIELDS:
+            if field in incoming:
+                stored[field] = _clean_text(incoming[field], 2000 if field in LONG_TEXT_FIELDS else 300)
+        if stored != profile.personal:
+            profile.personal = stored
+            changed = True
+        name_changed = False
+        for field in ('first_name', 'last_name'):
+            if field in incoming:
+                name = _clean_text(incoming[field], 150)
+                if not name:
+                    raise ValidationError({field: 'This field cannot be blank.'})
+                if name != getattr(user, field):
+                    setattr(user, field, name)
+                    name_changed = True
+        if name_changed:
+            user.save(update_fields=['first_name', 'last_name'])
+            changed = True
+
+    if 'summary' in data:
+        summary = _clean_text(data['summary'], 5000)
+        if summary != profile.summary:
+            profile.summary = summary
+            changed = True
+
+    for key in LIST_SECTION_FIELDS:
+        if key in data:
+            cleaned = _clean_list_section(key, data[key])
+            if cleaned != getattr(profile, key):
+                setattr(profile, key, cleaned)
+                changed = True
+
+    if 'skills' in data:
+        skills = _clean_skills(data['skills'])
+        if skills != profile.skills:
+            profile.skills = skills
+            changed = True
+
+    if changed:
+        profile.revision += 1
+    profile.save()
+    return career_profile_payload(user)
+
+
 @transaction.atomic
 def create_project(user, data):
     serializer = ProjectCreateSerializer(data=data, context={'user': user})
