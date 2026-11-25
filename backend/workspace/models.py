@@ -90,3 +90,41 @@ class Notification(models.Model):
         ordering = ['-created_at', '-id']
         indexes = [models.Index(fields=['owner', 'is_read', '-created_at'])]
 
+
+class DocumentSnapshot(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='snapshots')
+    revision = models.PositiveIntegerField()
+    title = models.CharField(max_length=200)
+    content = models.JSONField(default=dict)
+    design = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-revision', '-created_at']
+        indexes = [models.Index(fields=['project', '-revision'])]
+
+
+class PublicShareLink(models.Model):
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='share_link')
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class ExportEvent(models.Model):
+    class Format(models.TextChoices):
+        PDF = 'pdf', 'PDF'
+        DOCX = 'docx', 'DOCX'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='export_events')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    format = models.CharField(max_length=10, choices=Format.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['project', '-created_at'])]
+

@@ -1,6 +1,6 @@
 from django.utils import timezone
 from rest_framework import serializers
-from .models import Activity, Folder, Notification, Project
+from .models import Activity, DocumentSnapshot, ExportEvent, Folder, Notification, Project, PublicShareLink
 
 TRASH_RETENTION_DAYS = 30
 
@@ -109,3 +109,21 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = ['id', 'kind', 'title', 'message', 'is_read', 'created_at']
         read_only_fields = ['id', 'kind', 'title', 'message', 'created_at']
+
+
+class DocumentSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentSnapshot
+        fields = ['id', 'revision', 'title', 'content', 'design', 'created_at']
+
+
+class PublicShareLinkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PublicShareLink
+        fields = ['token', 'is_active', 'created_at', 'updated_at']
+
+
+class ExportEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExportEvent
+        fields = ['id', 'format', 'created_at']

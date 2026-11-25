@@ -386,3 +386,57 @@ class DashboardTests(TestCase):
         self.assertEqual(body['versions'][1]['is_current'], True)
         self.assertIn('App.jsx', body['versions'][1]['files'])
 
+    def test_version_history_snapshots_and_restore(self):
+        proj = self.mutate('/api/projects/', {'title': 'Versioned CV', 'kind': 'advanced_cv'}).json()
+        v2 = self.mutate(f"/api/projects/{proj['id']}/document/", {
+            'title': 'Versioned CV v2',
+            'content': {'files': {'App.jsx': '<h1>V2</h1>'}},
+        }, 'put')
+        self.assertEqual(v2.status_code, 200)
+
+        v3 = self.mutate(f"/api/projects/{proj['id']}/document/", {
+            'title': 'Versioned CV v3',
+            'content': {'files': {'App.jsx': '<h1>V3</h1>'}},
+        }, 'put')
+        self.assertEqual(v3.status_code, 200)
+
+        snaps = self.client.get(f"/api/projects/{proj['id']}/snapshots/").json()['snapshots']
+        self.assertEqual(len(snaps), 2)
+        self.assertEqual(snaps[0]['title'], 'Versioned CV v3')
+        self.assertEqual(snaps[1]['title'], 'Versioned CV v2')
+
+        restored = self.mutate(f"/api/projects/{proj['id']}/snapshots/{snaps[1]['id']}/restore/", {})
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.json()['project']['title'], 'Versioned CV v2')
+        self.assertEqual(restored.json()['content']['files']['App.jsx'], '<h1>V2</h1>')
+
+    def test_public_share_link_and_export_history(self):
+        proj = self.mutate('/api/projects/', {
+            'title': 'Shareable CV',
+            'kind': 'advanced_cv',
+            'content': {'files': {'App.jsx': '<h1>Public Resume</h1>'}},
+        }).json()
+
+        created = self.mutate(f"/api/projects/{proj['id']}/share/", {})
+        self.assertEqual(created.status_code, 201)
+        token = created.json()['share']['token']
+
+        anon = APIClient()
+        pub = anon.get(f'/api/public/share/{token}/')
+        self.assertEqual(pub.status_code, 200)
+        self.assertEqual(pub.json()['title'], 'Shareable CV')
+        self.assertIn('App.jsx', pub.json()['content']['files'])
+
+        revoked = self.mutate(f"/api/projects/{proj['id']}/share/", {}, 'delete')
+        self.assertEqual(revoked.status_code, 200)
+        self.assertEqual(anon.get(f'/api/public/share/{token}/').status_code, 404)
+
+        e1 = self.mutate(f"/api/projects/{proj['id']}/exports/", {'format': 'pdf'})
+        e2 = self.mutate(f"/api/projects/{proj['id']}/exports/", {'format': 'docx'})
+        self.assertEqual(e1.status_code, 201)
+        self.assertEqual(e2.status_code, 201)
+        summary = self.client.get(f"/api/projects/{proj['id']}/exports/").json()
+        self.assertEqual(summary['pdf_count'], 1)
+        self.assertEqual(summary['docx_count'], 1)
+        self.assertEqual(summary['total_count'], 2)
+

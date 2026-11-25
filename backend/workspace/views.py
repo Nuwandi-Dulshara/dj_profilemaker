@@ -1,6 +1,7 @@
 import base64
 import io
 import posixpath
+import secrets
 import uuid
 import zipfile
 from django.conf import settings
@@ -13,10 +14,19 @@ from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Activity, Document, Folder, Notification, Project
-from .serializers import ActivitySerializer, FolderSerializer, NotificationSerializer, ProjectSerializer
+from .models import Activity, Document, DocumentSnapshot, ExportEvent, Folder, Notification, Project, PublicShareLink
+from .serializers import (
+    ActivitySerializer,
+    DocumentSnapshotSerializer,
+    ExportEventSerializer,
+    FolderSerializer,
+    NotificationSerializer,
+    ProjectSerializer,
+    PublicShareLinkSerializer,
+)
 from .services import (
     bulk_change_projects,
     career_profile_payload,
@@ -270,6 +280,13 @@ class ProjectDocumentView(PrivateView):
             document.revision += 1
             document.save(update_fields=['content', 'design', 'revision'])
             project.save(update_fields=['title', 'updated_at'])
+            DocumentSnapshot.objects.create(
+                project=project,
+                revision=document.revision,
+                title=project.title,
+                content=document.content if isinstance(document.content, dict) else {},
+                design=document.design if isinstance(document.design, dict) else {},
+            )
             Activity.objects.create(owner=request.user, project=project, title=project.title, action='updated')
 
         return Response({
@@ -395,3 +412,117 @@ class NotificationsReadAllView(PrivateView):
     def post(self, request):
         count = Notification.objects.filter(owner=request.user, is_read=False).update(is_read=True)
         return Response({'updated': count})
+
+
+class ProjectSnapshotsView(PrivateView):
+    def get(self, request, pk):
+        project = get_object_or_404(Project, pk=pk, owner=request.user, deleted_at__isnull=True)
+        snapshots = project.snapshots.all()[:50]
+        return Response({'snapshots': DocumentSnapshotSerializer(snapshots, many=True).data})
+
+
+class ProjectSnapshotRestoreView(PrivateView):
+    def post(self, request, pk, snapshot_id):
+        with transaction.atomic():
+            project = get_object_or_404(Project.objects.select_for_update(), pk=pk, owner=request.user, deleted_at__isnull=True)
+            snapshot = get_object_or_404(DocumentSnapshot, pk=snapshot_id, project=project)
+            document, _ = Document.objects.select_for_update().get_or_create(project=project)
+
+            project.title = snapshot.title[:200] or project.title
+            document.content = snapshot.content if isinstance(snapshot.content, dict) else {}
+            document.design = snapshot.design if isinstance(snapshot.design, dict) else {}
+            document.revision += 1
+            document.save(update_fields=['content', 'design', 'revision'])
+            project.save(update_fields=['title', 'updated_at'])
+            DocumentSnapshot.objects.create(
+                project=project,
+                revision=document.revision,
+                title=project.title,
+                content=document.content,
+                design=document.design,
+            )
+            Activity.objects.create(owner=request.user, project=project, title=project.title, action='restored')
+
+        return Response({
+            'project': ProjectSerializer(project).data,
+            'content': document.content,
+            'design': document.design,
+            'revision': document.revision,
+            'restored_from_revision': snapshot.revision,
+        })
+
+
+class ProjectShareView(PrivateView):
+    def get(self, request, pk):
+        project = get_object_or_404(Project, pk=pk, owner=request.user, deleted_at__isnull=True)
+        link = PublicShareLink.objects.filter(project=project, is_active=True).first()
+        return Response({'share': PublicShareLinkSerializer(link).data if link else None})
+
+    def post(self, request, pk):
+        project = get_object_or_404(Project, pk=pk, owner=request.user, deleted_at__isnull=True)
+        link, created = PublicShareLink.objects.get_or_create(
+            project=project,
+            defaults={'token': secrets.token_urlsafe(18), 'is_active': True},
+        )
+        if not created and not link.is_active:
+            link.token = secrets.token_urlsafe(18)
+            link.is_active = True
+            link.save(update_fields=['token', 'is_active', 'updated_at'])
+        return Response({'share': PublicShareLinkSerializer(link).data}, status=201 if created else 200)
+
+    def delete(self, request, pk):
+        project = get_object_or_404(Project, pk=pk, owner=request.user, deleted_at__isnull=True)
+        PublicShareLink.objects.filter(project=project).update(is_active=False)
+        return Response({'share': None})
+
+
+@method_decorator(never_cache, name='dispatch')
+class PublicShareDetailView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        link = get_object_or_404(
+            PublicShareLink.objects.select_related('project', 'project__document'),
+            token=token,
+            is_active=True,
+            project__deleted_at__isnull=True,
+        )
+        project = link.project
+        document = getattr(project, 'document', None)
+        return Response({
+            'title': project.title,
+            'kind': project.kind,
+            'updated_at': project.updated_at,
+            'content': document.content if document and isinstance(document.content, dict) else {},
+            'design': document.design if document and isinstance(document.design, dict) else {},
+        })
+
+
+class ProjectExportsView(PrivateView):
+    def get(self, request, pk):
+        project = get_object_or_404(Project, pk=pk, owner=request.user, deleted_at__isnull=True)
+        events = project.export_events.all()[:30]
+        pdf_count = project.export_events.filter(format='pdf').count()
+        docx_count = project.export_events.filter(format='docx').count()
+        return Response({
+            'pdf_count': pdf_count,
+            'docx_count': docx_count,
+            'total_count': pdf_count + docx_count,
+            'events': ExportEventSerializer(events, many=True).data,
+        })
+
+    def post(self, request, pk):
+        project = get_object_or_404(Project, pk=pk, owner=request.user, deleted_at__isnull=True)
+        fmt = str(request.data.get('format', '')).strip().lower()
+        if fmt not in ('pdf', 'docx'):
+            raise ValidationError({'format': 'Choose pdf or docx.'})
+        event = ExportEvent.objects.create(project=project, owner=request.user, format=fmt)
+        pdf_count = project.export_events.filter(format='pdf').count()
+        docx_count = project.export_events.filter(format='docx').count()
+        return Response({
+            'event': ExportEventSerializer(event).data,
+            'pdf_count': pdf_count,
+            'docx_count': docx_count,
+            'total_count': pdf_count + docx_count,
+        }, status=201)
