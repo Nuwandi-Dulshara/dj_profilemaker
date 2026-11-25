@@ -21,6 +21,7 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
+  GitBranch,
   HelpCircle,
   Image as ImageIcon,
   LifeBuoy,
@@ -55,6 +56,7 @@ import { MonacoCodeEditor } from './MonacoCodeEditor';
 import { compileAndRenderCvWorkspace, exportRenderedCvToDocx } from './cvRuntime';
 import { openRenderedPdfInNewTab } from './pdfGenerator';
 import { CareerImportDialog } from './CareerImportDialog';
+import { CvVersionsDialog } from './CvVersionsDialog';
 import type { CareerImportResult, CareerProfileData, DocumentImports } from './careerProfile';
 import './advanced-cv.css';
 
@@ -571,6 +573,7 @@ export function BlankCvWorkspace() {
   // Career Profile / CV import bookkeeping lives in the document `design`, so it is saved with the project.
   const [design, setDesign] = useState<Record<string, any>>({});
   const [importOpen, setImportOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const careerProfileQuery = useWorkspace<CareerProfileData>('career-profile', '/career-profile/');
   const imports: DocumentImports = (design.imports as DocumentImports) || {};
   const careerProfileStale = Boolean(
@@ -1561,6 +1564,14 @@ export function BlankCvWorkspace() {
                 <UserCheck size={16} />
                 Import from Career Profile
               </button>
+              <button
+                type="button"
+                className="adv-cv-ribbon-btn"
+                onClick={() => setVersionsOpen(true)}
+              >
+                <GitBranch size={16} />
+                Job Versions
+              </button>
               <span className="adv-cv-ribbon-divider" aria-hidden="true" />
               <button
                 type="button"
@@ -1695,6 +1706,15 @@ export function BlankCvWorkspace() {
           imports={imports}
           onClose={() => setImportOpen(false)}
           onApply={applyCareerImport}
+        />
+      )}
+      {versionsOpen && (
+        <CvVersionsDialog
+          projectId={projectId}
+          projectTitle={title}
+          onSaveCurrent={() => handleSave()}
+          onOpenProject={(id) => navigate(`/dashboard/advanced-cv/${id}`)}
+          onClose={() => setVersionsOpen(false)}
         />
       )}
 

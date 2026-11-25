@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../services/api';
 
 export interface Page<T> { count: number; results: T[]; next: string | null; previous: string | null; }
-export interface Project { id: string; title: string; kind: 'advanced_cv' | 'cover_letter'; favorite: boolean; archived: boolean; folder: string | null; folder_name: string | null; created_at?: string; updated_at: string; deleted_at: string | null; }
+export interface Project { id: string; title: string; kind: 'advanced_cv' | 'cover_letter'; favorite: boolean; archived: boolean; folder: string | null; folder_name: string | null; parent_project?: string | null; parent_title?: string | null; target_role?: string; variant_count?: number; trash_days_remaining?: number | null; created_at?: string; updated_at: string; deleted_at: string | null; }
 export interface Folder { id: string; name: string; parent?: string | null; parent_name?: string | null; project_count?: number; }
 export interface Notice { id: string; title: string; message: string; is_read: boolean; kind: string; created_at: string; }
 export interface ActivityItem { id: number; project: string | null; title: string; action: string; created_at: string; }
