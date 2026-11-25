@@ -506,3 +506,83 @@ it('manages Company Details panel, auto-fills into cover letter, allows editing,
   });
 }, 15000);
 
+it('shows a real-time one-page A4 warning when cover letter content exceeds one page and clears it when shortened', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string) => {
+      if (path.includes('/auth/csrf/')) return new Response(JSON.stringify({ csrfToken: 'csrf-token' }));
+      if (path.includes('/career-profile/')) {
+        return new Response(
+          JSON.stringify({
+            personal: {},
+            summary: '',
+            experience: [],
+            education: [],
+            skills: [],
+            projects: [],
+            certifications: [],
+            revision: 1,
+            updated_at: null,
+            percent: 0,
+            sections: [],
+          })
+        );
+      }
+      if (path.endsWith('/projects/cl-limit-1/document/')) {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cl-limit-1',
+              title: 'Two Page Letter',
+              kind: 'cover_letter',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-25T09:00:00Z',
+              deleted_at: null,
+            },
+            content: {
+              files: {
+                'letter.jsx':
+                  'export default function CoverLetter() { return <main><article className="cv-page"><p>Page 1</p></article><article className="cv-page"><p>Page 2</p></article></main>; }',
+              },
+              folders: [],
+            },
+            design: {},
+            revision: 1,
+          })
+        );
+      }
+      return new Response(JSON.stringify(emptyPage));
+    })
+  );
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/dashboard/cover-letters/cl-limit-1']}>
+        <Routes>
+          <Route path="/dashboard/*" element={<DashboardPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+  const warning = await screen.findByRole('alert', { name: 'One-page A4 limit warning' });
+  expect(warning).toBeVisible();
+  expect(warning).toHaveTextContent('Exceeds 1 A4 page');
+  expect(warning).toHaveTextContent('2 pages');
+
+  const editor = screen.getByLabelText('Code editor for letter.jsx');
+  fireEvent.change(editor, {
+    target: {
+      value:
+        'export default function CoverLetter() { return <article className="cv-page"><p>Concise one-page letter</p></article>; }',
+    },
+  });
+
+  await waitFor(() => {
+    expect(screen.queryByRole('alert', { name: 'One-page A4 limit warning' })).toBeNull();
+  });
+}, 15000);
+

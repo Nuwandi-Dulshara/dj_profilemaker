@@ -2044,7 +2044,7 @@ export function BlankCoverLetterWorkspace() {
             <div className="adv-cv-preview-head">
               <div className="adv-cv-preview-head-left">
                 <span>Live Preview</span>
-                <span className="adv-cv-page-badge">
+                <span className={`adv-cv-page-badge ${compiledPreview.pages.length > 1 ? 'is-warning' : ''}`}>
                   A4 · {Math.max(1, compiledPreview.pages.length)}{' '}
                   {compiledPreview.pages.length > 1 ? 'Pages' : 'Page'}
                 </span>
@@ -2073,6 +2073,16 @@ export function BlankCoverLetterWorkspace() {
                 </button>
               </div>
             </div>
+
+            {compiledPreview.pages.length > 1 && (
+              <div className="adv-cv-page-limit-warning" role="alert" aria-label="One-page A4 limit warning">
+                <AlertTriangle size={16} />
+                <span>
+                  <strong>Exceeds 1 A4 page:</strong> Your cover letter is currently {compiledPreview.pages.length}{' '}
+                  pages long. Shorten your content or tighten spacing so it fits on a single A4 page.
+                </span>
+              </div>
+            )}
 
             {(compiledPreview.runtimeError || compiledPreview.diagnostics.length > 0) && (
               <div className="adv-cv-preview-errors" role="alert" aria-label="React compile error">

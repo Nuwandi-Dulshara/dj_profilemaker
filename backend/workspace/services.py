@@ -1,10 +1,11 @@
 import uuid
+from datetime import timedelta
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 from .models import Activity, CareerProfile, Document, Folder, Project
-from .serializers import ProjectCreateSerializer, ProjectSerializer
+from .serializers import ProjectCreateSerializer, ProjectSerializer, TRASH_RETENTION_DAYS
 
 
 def career_summary(user):
@@ -182,6 +183,25 @@ def change_project(user, pk, action, data=None):
         if document:
             Document.objects.create(project=project, schema_version=document.schema_version, content=document.content, design=document.design)
         activity = 'duplicated'
+    elif action == 'create-variant':
+        document = Document.objects.filter(project=project).first()
+        base_project = project.parent_project if project.parent_project and project.parent_project.deleted_at is None else project
+        raw_role = str(data.get('target_role', '')).strip()[:150] if isinstance(data, dict) else ''
+        if not raw_role:
+            raise ValidationError({'target_role': 'Enter a target job title or company for this CV version.'})
+        custom_title = str(data.get('title', '')).strip()[:200] if isinstance(data, dict) else ''
+        next_title = custom_title or f'{base_project.title[:140]} — {raw_role}'[:200]
+        project = Project.objects.create(
+            owner=user,
+            title=next_title,
+            kind=project.kind,
+            folder=project.folder,
+            parent_project=base_project,
+            target_role=raw_role,
+        )
+        if document:
+            Document.objects.create(project=project, schema_version=document.schema_version, content=document.content, design=document.design)
+        activity = 'created'
     elif action == 'delete':
         project.deleted_at = timezone.now()
         project.save(update_fields=['deleted_at', 'updated_at'])
@@ -292,4 +312,65 @@ def bulk_change_projects(user, data):
         'updated_ids': [str(pid) for pid in updated_ids],
         'failed_ids': [str(pid) for pid in failed_ids],
         'updated_count': len(updated_ids),
+    }
+
+
+@transaction.atomic
+def purge_expired_trash(user=None, days=TRASH_RETENTION_DAYS):
+    """Permanently delete trashed projects older than `days` days."""
+    cutoff = timezone.now() - timedelta(days=days)
+    query = Project.objects.filter(deleted_at__isnull=False, deleted_at__lte=cutoff)
+    if user is not None:
+        query = query.filter(owner=user)
+    expired = list(query.select_related('owner'))
+    if not expired:
+        return 0
+    Activity.objects.bulk_create([
+        Activity(owner=item.owner, project=None, title=item.title, action='permanently_deleted')
+        for item in expired
+    ])
+    deleted_count, _ = Project.objects.filter(id__in=[item.id for item in expired]).delete()
+    return len(expired) if deleted_count else 0
+
+
+def get_project_versions(user, pk):
+    """Return the base CV and all active job-specific variants linked to it, including document files for comparison."""
+    current = get_object_or_404(
+        Project.objects.select_related('parent_project'),
+        pk=pk,
+        owner=user,
+        deleted_at__isnull=True,
+    )
+    base = current.parent_project if current.parent_project and current.parent_project.deleted_at is None else current
+    versions_qs = (
+        Project.objects.filter(owner=user, deleted_at__isnull=True)
+        .filter(id=base.id)
+        .union(
+            Project.objects.filter(owner=user, deleted_at__isnull=True, parent_project=base)
+        )
+    )
+    # Re-fetch ordered with documents attached cleanly
+    version_ids = [item.id for item in versions_qs]
+    ordered = (
+        Project.objects.filter(id__in=version_ids)
+        .select_related('document')
+        .order_by('created_at', 'id')
+    )
+    items = []
+    for proj in ordered:
+        doc = getattr(proj, 'document', None)
+        raw_files = doc.content.get('files', {}) if doc and isinstance(doc.content, dict) else {}
+        items.append({
+            'id': str(proj.id),
+            'title': proj.title,
+            'target_role': proj.target_role,
+            'is_base': proj.id == base.id,
+            'is_current': proj.id == current.id,
+            'updated_at': proj.updated_at,
+            'files': raw_files if isinstance(raw_files, dict) else {},
+        })
+    return {
+        'base_id': str(base.id),
+        'current_id': str(current.id),
+        'versions': items,
     }

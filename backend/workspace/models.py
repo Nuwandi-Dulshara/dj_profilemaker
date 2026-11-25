@@ -24,6 +24,8 @@ class Project(models.Model):
     title = models.CharField(max_length=200)
     kind = models.CharField(max_length=20, choices=Kind.choices)
     folder = models.ForeignKey(Folder, null=True, blank=True, on_delete=models.SET_NULL)
+    parent_project = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='variants')
+    target_role = models.CharField(max_length=150, blank=True, default='')
     favorite = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)

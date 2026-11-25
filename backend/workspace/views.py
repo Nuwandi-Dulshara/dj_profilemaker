@@ -17,7 +17,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Activity, Document, Folder, Notification, Project
 from .serializers import ActivitySerializer, FolderSerializer, NotificationSerializer, ProjectSerializer
-from .services import bulk_change_projects, career_profile_payload, career_summary, change_project, create_project, update_career_profile
+from .services import (
+    bulk_change_projects,
+    career_profile_payload,
+    career_summary,
+    change_project,
+    create_project,
+    get_project_versions,
+    purge_expired_trash,
+    update_career_profile,
+)
 
 
 class Pagination(PageNumberPagination):
@@ -55,6 +64,7 @@ def get_project_stats(user):
 
 class SummaryView(PrivateView):
     def get(self, request):
+        purge_expired_trash(user=request.user)
         counts, project_stats = get_project_stats(request.user)
         return Response({
             'counts': counts,
@@ -76,10 +86,13 @@ class CareerProfileView(PrivateView):
 
 class RecentProjectsView(PrivateView):
     def get(self, request):
+        purge_expired_trash(user=request.user)
         state = request.query_params.get('state', 'active')
         if state not in ['active', 'archived', 'deleted', 'all']:
             raise ValidationError({'state': 'Choose active, archived, or deleted.'})
-        projects = Project.objects.filter(owner=request.user).select_related('folder')
+        projects = Project.objects.filter(owner=request.user).select_related('folder', 'parent_project').annotate(
+            active_variant_count=Count('variants', filter=Q(variants__deleted_at__isnull=True))
+        )
         if state == 'deleted':
             projects = projects.filter(deleted_at__isnull=False)
         elif state == 'all':
@@ -166,7 +179,12 @@ class ProjectActionView(PrivateView):
         result = change_project(request.user, pk, action, request.data)
         if action == 'permanent-delete':
             return Response(result)
-        return Response(ProjectSerializer(result).data, status=201 if action == 'duplicate' else 200)
+        return Response(ProjectSerializer(result).data, status=201 if action in ('duplicate', 'create-variant') else 200)
+
+
+class ProjectVersionsView(PrivateView):
+    def get(self, request, pk):
+        return Response(get_project_versions(request.user, pk))
 
 
 class ProjectBulkActionsView(PrivateView):

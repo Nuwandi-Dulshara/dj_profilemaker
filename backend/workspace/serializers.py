@@ -1,14 +1,36 @@
+from django.utils import timezone
 from rest_framework import serializers
 from .models import Activity, Folder, Notification, Project
+
+TRASH_RETENTION_DAYS = 30
 
 
 class ProjectSerializer(serializers.ModelSerializer):
     folder_name = serializers.CharField(source='folder.name', default=None, read_only=True)
+    parent_title = serializers.CharField(source='parent_project.title', default=None, read_only=True)
+    variant_count = serializers.SerializerMethodField()
+    trash_days_remaining = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
-        fields = ['id', 'title', 'kind', 'folder', 'folder_name', 'favorite', 'archived', 'deleted_at', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'kind', 'deleted_at', 'created_at', 'updated_at']
+        fields = [
+            'id', 'title', 'kind', 'folder', 'folder_name',
+            'parent_project', 'parent_title', 'target_role', 'variant_count',
+            'favorite', 'archived', 'deleted_at', 'trash_days_remaining',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'kind', 'parent_project', 'deleted_at', 'created_at', 'updated_at']
+
+    def get_variant_count(self, obj):
+        if hasattr(obj, 'active_variant_count'):
+            return obj.active_variant_count
+        return obj.variants.filter(deleted_at__isnull=True).count()
+
+    def get_trash_days_remaining(self, obj):
+        if not obj.deleted_at:
+            return None
+        elapsed = (timezone.now() - obj.deleted_at).days
+        return max(0, TRASH_RETENTION_DAYS - elapsed)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

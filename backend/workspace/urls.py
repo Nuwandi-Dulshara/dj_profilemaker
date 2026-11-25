@@ -12,6 +12,7 @@ urlpatterns = [
     path('projects/<uuid:pk>/', views.ProjectDetailView.as_view()),
     path('projects/<uuid:pk>/document/', views.ProjectDocumentView.as_view()),
     path('projects/<uuid:pk>/upload-zip/', views.ProjectUploadZipView.as_view()),
+    path('projects/<uuid:pk>/versions/', views.ProjectVersionsView.as_view()),
     path('folders/', views.FoldersView.as_view()),
     path('folders/<uuid:pk>/', views.FolderDetailView.as_view()),
     path('project-folders/', views.FoldersView.as_view()),
@@ -20,5 +21,5 @@ urlpatterns = [
     path('notifications/read-all/', views.NotificationsReadAllView.as_view()),
     path('notifications/<uuid:pk>/', views.NotificationDetailView.as_view()),
 ]
-for action in ['duplicate', 'delete', 'restore', 'permanent-delete']:
+for action in ['duplicate', 'create-variant', 'delete', 'restore', 'permanent-delete']:
     urlpatterns.append(path(f'projects/<uuid:pk>/{action}/', views.ProjectActionView.as_view(), {'action': action}))

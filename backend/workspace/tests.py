@@ -312,3 +312,77 @@ class DashboardTests(TestCase):
         self.assertEqual(data['summary'], '')
         self.assertEqual(data['revision'], 0)
 
+    def test_thirty_day_automatic_trash_deletion(self):
+        from datetime import timedelta
+        from django.core.management import call_command
+        from django.utils import timezone
+
+        recent_trashed = Project.objects.create(
+            owner=self.user,
+            title='Recent Trashed CV',
+            kind='advanced_cv',
+            deleted_at=timezone.now() - timedelta(days=10),
+        )
+        expired_trashed = Project.objects.create(
+            owner=self.user,
+            title='Expired Trashed CV',
+            kind='advanced_cv',
+            deleted_at=timezone.now() - timedelta(days=31),
+        )
+        other_expired = Project.objects.create(
+            owner=self.other,
+            title='Other User Expired CV',
+            kind='advanced_cv',
+            deleted_at=timezone.now() - timedelta(days=35),
+        )
+
+        # Listing trashed projects for self.user purges only self.user's expired items
+        res = self.client.get('/api/projects/?state=deleted')
+        self.assertEqual(res.status_code, 200)
+        titles = [item['title'] for item in res.json()['results']]
+        self.assertIn('Recent Trashed CV', titles)
+        self.assertNotIn('Expired Trashed CV', titles)
+        self.assertEqual(res.json()['results'][0]['trash_days_remaining'], 20)
+        self.assertFalse(Project.objects.filter(id=expired_trashed.id).exists())
+        self.assertTrue(Project.objects.filter(id=recent_trashed.id).exists())
+        self.assertTrue(Project.objects.filter(id=other_expired.id).exists())
+
+        # Management command purges remaining expired items across all users
+        call_command('purge_expired_trash')
+        self.assertFalse(Project.objects.filter(id=other_expired.id).exists())
+
+    def test_job_specific_cv_versions_and_comparison_endpoint(self):
+        base = self.mutate('/api/projects/', {
+            'title': 'Master CV',
+            'kind': 'advanced_cv',
+            'content': {'files': {'App.jsx': 'export default function CV() { return <h1>Base</h1>; }'}},
+        }).json()
+
+        bad = self.mutate(f"/api/projects/{base['id']}/create-variant/", {'target_role': '   '})
+        self.assertEqual(bad.status_code, 400)
+
+        v1 = self.mutate(f"/api/projects/{base['id']}/create-variant/", {
+            'target_role': 'Stripe — Backend Engineer',
+        }).json()
+        self.assertEqual(v1['parent_project'], base['id'])
+        self.assertEqual(v1['target_role'], 'Stripe — Backend Engineer')
+        self.assertIn('Stripe — Backend Engineer', v1['title'])
+
+        # Creating a variant from a variant still groups under the base CV
+        v2 = self.mutate(f"/api/projects/{v1['id']}/create-variant/", {
+            'target_role': 'Vercel — Frontend Engineer',
+            'title': 'Vercel CV',
+        }).json()
+        self.assertEqual(v2['parent_project'], base['id'])
+        self.assertEqual(v2['title'], 'Vercel CV')
+
+        versions = self.client.get(f"/api/projects/{v1['id']}/versions/")
+        self.assertEqual(versions.status_code, 200)
+        body = versions.json()
+        self.assertEqual(body['base_id'], base['id'])
+        self.assertEqual(body['current_id'], v1['id'])
+        self.assertEqual(len(body['versions']), 3)
+        self.assertEqual(body['versions'][0]['is_base'], True)
+        self.assertEqual(body['versions'][1]['is_current'], True)
+        self.assertIn('App.jsx', body['versions'][1]['files'])
+

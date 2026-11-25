@@ -504,3 +504,168 @@ it('imports Career Profile into an editable copy, keeps edits isolated, and refr
   expect(screen.getByText('career-profile.previous.json')).toBeVisible();
   expect(careerPutCalls).toHaveLength(0);
 }, 15000);
+
+it('manages Job-Specific CV Versions, creates variants, and compares file differences', async () => {
+  const variantPosts: any[] = [];
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (path.includes('/auth/csrf/')) return new Response(JSON.stringify({ csrfToken: 'csrf-token' }));
+      if (path.includes('/career-profile/')) {
+        return new Response(
+          JSON.stringify({
+            personal: {},
+            summary: '',
+            experience: [],
+            education: [],
+            skills: [],
+            projects: [],
+            certifications: [],
+            revision: 1,
+            updated_at: null,
+            percent: 0,
+            sections: [],
+          })
+        );
+      }
+      if (path.endsWith('/projects/cv-base-1/versions/')) {
+        return new Response(
+          JSON.stringify({
+            base_id: 'cv-base-1',
+            current_id: 'cv-base-1',
+            versions: [
+              {
+                id: 'cv-base-1',
+                title: 'Master CV',
+                target_role: '',
+                is_base: true,
+                is_current: true,
+                updated_at: '2026-11-25T08:00:00Z',
+                files: { 'App.jsx': 'line1\nline2' },
+              },
+              {
+                id: 'cv-var-1',
+                title: 'Master CV — Stripe Backend',
+                target_role: 'Stripe Backend',
+                is_base: false,
+                is_current: false,
+                updated_at: '2026-11-25T08:30:00Z',
+                files: { 'App.jsx': 'line1\nline2\nStripe highlights' },
+              },
+            ],
+          })
+        );
+      }
+      if (path.endsWith('/projects/cv-base-1/create-variant/') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        variantPosts.push(body);
+        return new Response(
+          JSON.stringify({
+            id: 'cv-var-2',
+            title: `Master CV — ${body.target_role}`,
+            kind: 'advanced_cv',
+            parent_project: 'cv-base-1',
+            target_role: body.target_role,
+            favorite: false,
+            archived: false,
+            folder: null,
+            folder_name: null,
+            updated_at: '2026-11-25T09:00:00Z',
+            deleted_at: null,
+          }),
+          { status: 201 }
+        );
+      }
+      if (path.includes('/projects/cv-base-1/document/') && (!init?.method || init.method === 'GET')) {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cv-base-1',
+              title: 'Master CV',
+              kind: 'advanced_cv',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-25T08:00:00Z',
+              deleted_at: null,
+            },
+            content: { files: { 'App.jsx': 'line1\nline2' }, folders: [] },
+            design: {},
+            revision: 1,
+          })
+        );
+      }
+      if (path.includes('/projects/cv-base-1/document/') && init?.method === 'PUT') {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cv-base-1',
+              title: 'Master CV',
+              kind: 'advanced_cv',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-25T09:00:00Z',
+              deleted_at: null,
+            },
+            content: { files: { 'App.jsx': 'line1\nline2' }, folders: [] },
+            design: {},
+            revision: 2,
+          })
+        );
+      }
+      if (path.includes('/projects/cv-var-2/document/')) {
+        return new Response(
+          JSON.stringify({
+            project: {
+              id: 'cv-var-2',
+              title: 'Master CV — Vercel Frontend',
+              kind: 'advanced_cv',
+              parent_project: 'cv-base-1',
+              target_role: 'Vercel Frontend',
+              favorite: false,
+              archived: false,
+              folder: null,
+              folder_name: null,
+              updated_at: '2026-11-25T09:00:00Z',
+              deleted_at: null,
+            },
+            content: { files: { 'App.jsx': 'line1\nline2' }, folders: [] },
+            design: {},
+            revision: 1,
+          })
+        );
+      }
+      return new Response(JSON.stringify(emptyPage));
+    })
+  );
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/dashboard/advanced-cv/cv-base-1']}>
+        <Routes>
+          <Route path="/dashboard/*" element={<DashboardPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+
+  await userEvent.click(await screen.findByRole('button', { name: 'Job Versions' }));
+
+  const versionsList = await screen.findByLabelText('Linked CV Versions');
+  expect(versionsList).toHaveTextContent('Master CV — Stripe Backend');
+
+  // Compare Base CV vs Stripe Backend variant
+  await userEvent.selectOptions(screen.getByLabelText('Compare target version'), 'cv-var-1');
+  expect(await screen.findByText(/\+1 \/ -0 lines/)).toBeVisible();
+
+  // Create a new Job-Specific Version
+  await userEvent.type(screen.getByLabelText('Target Job / Company'), 'Vercel Frontend');
+  await userEvent.click(screen.getByRole('button', { name: 'Create Job Version' }));
+
+  await waitFor(() => expect(variantPosts).toHaveLength(1));
+  expect(variantPosts[0]).toMatchObject({ target_role: 'Vercel Frontend' });
+}, 15000);
