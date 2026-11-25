@@ -70,8 +70,7 @@ npm run build
 ├── frontend/         # React TypeScript application
 │   ├── src/
 │   │   ├── app/      # Main app routing
-│   │   ├── features/ # Feature modules (auth, cv, cover-letter, etc.)
-│   │   ├── document-engine/ # Shared document rendering
+│   │   ├── features/ # Feature modules (auth, cv, cover-letter, dashboard, profile)
 │   │   └── services/ # API services
 │   └── public/       # Static assets
 └── README.md         # This file

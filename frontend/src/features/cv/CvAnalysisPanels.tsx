@@ -190,7 +190,7 @@ export function CvAnalysisDrawer({
         </div>
       </header>
 
-      {/* 7.1 ATS CHECKER */}
+      {/* ATS CHECKER */}
       {activeTool === 'ats' && atsResult && (
         <div className="adv-cv-analysis-body">
           <div className="adv-cv-stats-row">
@@ -254,7 +254,7 @@ export function CvAnalysisDrawer({
         </div>
       )}
 
-      {/* 7.2 JOB MATCHER */}
+      {/* JOB MATCHER */}
       {activeTool === 'job-matcher' && (
         <div className="adv-cv-analysis-body">
           <form className="adv-cv-job-form" onSubmit={handleRunJobMatcher}>
@@ -393,7 +393,7 @@ export function CvAnalysisDrawer({
         </div>
       )}
 
-      {/* 7.3 GRAMMAR CHECKER */}
+      {/* GRAMMAR CHECKER */}
       {activeTool === 'grammar' && grammarResult && (
         <div className="adv-cv-analysis-body">
           <div className="adv-cv-stats-row">

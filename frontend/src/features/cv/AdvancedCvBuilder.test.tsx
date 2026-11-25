@@ -319,7 +319,7 @@ it('enables ATS Checker, Job Matcher, and Grammar Checker after saving the CV an
     'styles.css': '.cv-root { display: grid; grid-template-columns: 1fr 2fr; }',
   });
 
-  // 7.1 ATS Checker verification on saved rendered CV
+  // ATS Checker verification on saved rendered CV
   const ats = runAtsCheck(savedCv.html, savedCv.css);
   expect(ats.items).toHaveLength(8);
   expect(ats.contactInfo.email).toBe(true);
@@ -328,7 +328,7 @@ it('enables ATS Checker, Job Matcher, and Grammar Checker after saving the CV an
   expect(ats.items.some((i) => i.id === 'tables-multicolumn' && i.status === 'Warning')).toBe(true);
   expect(ats.disclaimer).toContain('does not guarantee acceptance');
 
-  // 7.2 Job Matcher verification (including strict technology distinction: REST API != REST Assured)
+  // Job Matcher verification (including strict technology distinction: REST API != REST Assured)
   const jobDesc = [
     "Bachelor's degree in Computing or related field",
     '3+ years in SDET or test automation',
@@ -354,7 +354,7 @@ it('enables ATS Checker, Job Matcher, and Grammar Checker after saving the CV an
     expect.arrayContaining(['REST Assured', 'Selenium', 'Appium', 'GitLab', 'Jenkins', 'GCP'])
   );
 
-  // 7.3 Grammar Checker verification on saved rendered CV text (does not touch React code)
+  // Grammar Checker verification on saved rendered CV text (does not touch React code)
   const grammar = runGrammarCheck(savedCv.html);
   expect(grammar.totalIssues).toBeGreaterThanOrEqual(5);
   const issueTypes = grammar.issues.map((i) => i.issueType);

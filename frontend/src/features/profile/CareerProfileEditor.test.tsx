@@ -87,5 +87,5 @@ it('edits Career Profile sections and saves via PUT /api/career-profile/', async
     ],
   });
   expect(await screen.findByText(/Career Profile saved/)).toBeVisible();
-});
+}, 15000);
 

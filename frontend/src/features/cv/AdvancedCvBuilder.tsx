@@ -113,7 +113,7 @@ function computeAllFolderPaths(explicitFolders: string[], fileKeys: string[]): s
 }
 
 /**
- * Step 2: Advanced CV Builder Index Page (/dashboard/advanced-cv)
+ * Advanced CV Builder Index Page (/dashboard/advanced-cv)
  */
 export function AdvancedCvIndexPage() {
   const navigate = useNavigate();
@@ -610,7 +610,7 @@ function CreateBlankCvRedirect() {
 }
 
 /**
- * Step 3, Step 4, Step 5 & Step 6: Advanced CV Builder Workspace (/dashboard/advanced-cv/:projectId)
+ * Advanced CV Builder Workspace (/dashboard/advanced-cv/:projectId)
  */
 export function BlankCvWorkspace() {
   const { projectId = '' } = useParams();
@@ -660,7 +660,7 @@ export function BlankCvWorkspace() {
   const [toast, setToast] = useState('');
   const [activeAnalysisTool, setActiveAnalysisTool] = useState<ActiveAnalysisTool>(null);
 
-  // Step 4.3 Ribbon Tabs & View Modes
+  // Ribbon Tabs & View Modes
   const [ribbonTab, setRibbonTab] = useState<'file' | 'view' | 'help'>('file');
   const [viewMode, setViewMode] = useState<'split' | 'editor' | 'preview'>('split');
   const [explorerWidth, setExplorerWidth] = useState(260);
@@ -734,7 +734,7 @@ export function BlankCvWorkspace() {
     return () => controller.abort();
   }, [loadWorkspace]);
 
-  // Step 6: Save functionality (separate from Download)
+  // Save functionality (separate from Download)
   const handleSave = useCallback(
     async (overrideTitle?: string, overrideFiles?: Record<string, string>, overrideFolders?: string[]) => {
       const nextTitle = (overrideTitle ?? title).trim() || 'Untitled';
@@ -853,7 +853,7 @@ export function BlankCvWorkspace() {
     setStatus('unsaved');
   }
 
-  // Step 5.1: Rename or move a file (including organizing uploaded assets into folders)
+  // Rename or move a file (including organizing uploaded assets into folders)
   function handleRenameOrMoveFile(e: React.FormEvent) {
     e.preventDefault();
     const oldPath = modalTarget;
@@ -895,7 +895,7 @@ export function BlankCvWorkspace() {
     setStatus('unsaved');
   }
 
-  // Step 5.1: Duplicate a file in the File Explorer
+  // Duplicate a file in the File Explorer
   function handleDuplicateFile(sourcePath: string) {
     if (files[sourcePath] === undefined) return;
     const slashIdx = sourcePath.lastIndexOf('/');
@@ -919,7 +919,7 @@ export function BlankCvWorkspace() {
     setStatus('unsaved');
   }
 
-  // Step 5.1: Rename a folder in the File Explorer
+  // Rename a folder in the File Explorer
   function handleRenameFolder(e: React.FormEvent) {
     e.preventDefault();
     const oldDir = modalTarget;
@@ -1070,10 +1070,10 @@ export function BlankCvWorkspace() {
     }
   }
 
-  // Step 5.2 & 5.3: Compile multi-file React JSX/JS & CSS workspace
+  // Compile multi-file React JSX/JS & CSS workspace
   const compiledPreview = useMemo(() => compileAndRenderCvWorkspace(files), [files]);
 
-  // Step 7: Compile the saved CV snapshot so analysis tools strictly analyze the saved, rendered CV
+  // Compile the saved CV snapshot so analysis tools strictly analyze the saved, rendered CV
   const savedCompiledPreview = useMemo(() => compileAndRenderCvWorkspace(savedFiles), [savedFiles]);
   const canAnalyzeSavedCv = Boolean(savedCompiledPreview.html.trim());
 
@@ -1084,7 +1084,7 @@ export function BlankCvWorkspace() {
     }).catch(() => {});
   }
 
-  // Step 6: Download as PDF / Open PDF in New Tab (preserves exact A4 layout, formatting & multi-page pagination without blank spillover pages)
+  // Download as PDF / Open PDF in New Tab (preserves exact A4 layout, formatting & multi-page pagination without blank spillover pages)
   function handleExportPdf(openInNewTab = false) {
     recordExport('pdf');
     const pagesToRender =
@@ -1190,7 +1190,7 @@ export function BlankCvWorkspace() {
     }, 100);
   }
 
-  // Step 6: Download as DOCX (exports rendered CV document, never raw React source code; separate from Save)
+  // Download as DOCX (exports rendered CV document, never raw React source code; separate from Save)
   async function handleDownloadDocx() {
     setBusyAction(true);
     setMessage('');
@@ -1271,7 +1271,7 @@ export function BlankCvWorkspace() {
     window.addEventListener('mouseup', onUp);
   }
 
-  // Recursive Nested Folder & File Tree Renderer (Step 5.1)
+  // Recursive Nested Folder & File Tree Renderer
   function renderExplorerTree(parentDir = ''): React.ReactNode {
     const childFolders = allFolders.filter((dir) => {
       if (!parentDir) return !dir.includes('/');
@@ -1869,7 +1869,7 @@ export function BlankCvWorkspace() {
         />
       )}
 
-      {/* STEP 7: CV ANALYSIS TOOLS (ENABLED AFTER SAVING CV, ANALYZING SAVED RENDERED CV) */}
+      {/* CV ANALYSIS TOOLS (ENABLED AFTER SAVING CV, ANALYZING SAVED RENDERED CV) */}
       <CvAnalysisToolbar
         canAnalyze={canAnalyzeSavedCv}
         hasUnsavedChanges={status === 'unsaved'}
@@ -1900,7 +1900,7 @@ export function BlankCvWorkspace() {
         </p>
       )}
 
-      {/* STEP 5: THREE-PANEL WORKSPACE (FILE EXPLORER, CODE EDITOR, LIVE PREVIEW) */}
+      {/* THREE-PANEL WORKSPACE (FILE EXPLORER, CODE EDITOR, LIVE PREVIEW) */}
       <LiveMetricsBar
         html={compiledPreview.html}
         pageCount={compiledPreview.pages.length}

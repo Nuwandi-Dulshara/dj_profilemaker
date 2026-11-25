@@ -1,5 +1,5 @@
 /**
- * Step 7: CV Analysis Tools (ATS Checker, Job Matcher, Grammar Checker)
+ * CV Analysis Tools (ATS Checker, Job Matcher, Grammar Checker)
  * All analyses operate strictly on the saved, rendered CV HTML/CSS (never raw React source code).
  */
 
@@ -132,7 +132,7 @@ export function parseRenderedCvDom(renderedHtml: string): {
 }
 
 /**
- * 7.1 ATS Checker: Analyze the saved, rendered CV HTML and CSS across all 8 ATS compatibility checks.
+ * ATS Checker: Analyze the saved, rendered CV HTML and CSS across all 8 ATS compatibility checks.
  */
 export function runAtsCheck(renderedHtml: string, renderedCss: string): AtsAnalysisResult {
   const { doc, fullText, headings } = parseRenderedCvDom(renderedHtml);
@@ -878,7 +878,7 @@ export function extractJobRequirements(jobDescription: string): {
 }
 
 /**
- * 7.2 Job Matcher: Compare pasted job description against the saved, rendered CV.
+ * Job Matcher: Compare pasted job description against the saved, rendered CV.
  * Strictly distinguishes specific required technologies from general/related skills.
  */
 export function runJobMatchAnalysis(
@@ -1240,7 +1240,7 @@ const BRAND_CASING: { regex: RegExp; proper: string }[] = [
 ];
 
 /**
- * 7.3 Grammar Checker: Inspect the saved, rendered CV text for all 8 writing & grammar categories.
+ * Grammar Checker: Inspect the saved, rendered CV text for all 8 writing & grammar categories.
  * Does NOT modify the user's React code automatically.
  */
 export function runGrammarCheck(renderedHtml: string): GrammarAnalysisResult {
