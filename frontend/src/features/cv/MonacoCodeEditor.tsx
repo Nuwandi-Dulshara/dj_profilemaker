@@ -89,16 +89,19 @@ export function MonacoCodeEditor({
   allFilePaths,
   diagnostics,
   onChange,
+  onImproveSelection,
 }: {
   filePath: string;
   value: string;
   allFilePaths: string[];
   diagnostics: CodeDiagnostic[];
   onChange: (nextValue: string) => void;
+  onImproveSelection?: (selection: { text: string; start: number; end: number }) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const preRef = useRef<HTMLPreElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
+  const [selectedRange, setSelectedRange] = useState<{ text: string; start: number; end: number } | null>(null);
 
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
@@ -154,7 +157,16 @@ export function MonacoCodeEditor({
   }, [isCss, allFilePaths, filePath, queryWord]);
 
   function updateCursorStats(el: HTMLTextAreaElement) {
-    const pos = el.selectionStart || 0;
+    const start = el.selectionStart || 0;
+    const end = el.selectionEnd || 0;
+    if (end > start) {
+      const selected = el.value.slice(start, end);
+      setSelectedRange(selected.trim() ? { text: selected, start, end } : null);
+    } else {
+      setSelectedRange(null);
+    }
+
+    const pos = start;
     const before = el.value.slice(0, pos);
     const split = before.split('\n');
     setCursorLine(split.length);
@@ -322,8 +334,25 @@ export function MonacoCodeEditor({
             onKeyDown={handleKeyDown}
             onClick={(e) => updateCursorStats(e.currentTarget)}
             onKeyUp={(e) => updateCursorStats(e.currentTarget)}
+            onSelect={(e) => updateCursorStats(e.currentTarget)}
             onScroll={handleScroll}
           />
+
+          {onImproveSelection && selectedRange && (
+            <div className="monaco-cv-selection-popover" role="region" aria-label="Text Selection Assistant">
+              <button
+                type="button"
+                className="dash-secondary"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onImproveSelection(selectedRange);
+                }}
+              >
+                <Sparkles size={13} />
+                Improve Selected Text
+              </button>
+            </div>
+          )}
 
           {/* Autocomplete Popup */}
           {showSuggestions && suggestions.length > 0 && (

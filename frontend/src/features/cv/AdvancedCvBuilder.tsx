@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Archive,
   ArrowLeft,
+  BarChart3,
   BookOpen,
   ChevronDown,
   ChevronRight,
@@ -30,10 +31,13 @@ import {
   Printer,
   Save,
   Search,
+  Share2,
   Star,
   Trash2,
   Upload,
   UserCheck,
+  Wand2,
+  History,
   X,
 } from 'lucide-react';
 import { Dialog } from '../../components/Dialog';
@@ -57,6 +61,12 @@ import { compileAndRenderCvWorkspace, exportRenderedCvToDocx } from './cvRuntime
 import { openRenderedPdfInNewTab } from './pdfGenerator';
 import { CareerImportDialog } from './CareerImportDialog';
 import { CvVersionsDialog } from './CvVersionsDialog';
+import { VersionHistoryDialog } from './VersionHistoryDialog';
+import { ShareLinkDialog } from './ShareLinkDialog';
+import { ExportHistoryDialog } from './ExportHistoryDialog';
+import { StarterKitsDialog, type StarterKit } from './StarterKitsDialog';
+import { LiveMetricsBar } from './LiveMetricsBar';
+import { WritingAssistantDialog } from './WritingAssistantDialog';
 import type { CareerImportResult, CareerProfileData, DocumentImports } from './careerProfile';
 import './advanced-cv.css';
 
@@ -119,6 +129,7 @@ export function AdvancedCvIndexPage() {
 
   const [searchInput, setSearchInput] = useState(urlSearch);
   const [creating, setCreating] = useState(false);
+  const [starterOpen, setStarterOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
@@ -189,6 +200,29 @@ export function AdvancedCvIndexPage() {
     }
   }
 
+  async function handleCreateFromStarterKit(kit: StarterKit) {
+    if (creating) return;
+    setCreating(true);
+    setError('');
+    try {
+      const created = await api<Project>('/projects/', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: kit.defaultTitle,
+          kind: 'advanced_cv',
+          content: { files: kit.files, folders: kit.folders },
+          design: {},
+        }),
+      });
+      await refresh();
+      setStarterOpen(false);
+      navigate(`/dashboard/advanced-cv/${created.id}`);
+    } catch (err) {
+      setError((err as Error).message);
+      setCreating(false);
+    }
+  }
+
   async function toggleFavorite(project: Project) {
     setBusyId(project.id);
     setError('');
@@ -250,6 +284,14 @@ export function AdvancedCvIndexPage() {
         <div className="dash-header-cta">
           <button
             type="button"
+            className="dash-secondary"
+            disabled={creating}
+            onClick={() => setStarterOpen(true)}
+          >
+            Start from Starter Kit
+          </button>
+          <button
+            type="button"
             className="button button-primary"
             disabled={creating}
             onClick={() => void handleCreateNewCv()}
@@ -259,6 +301,15 @@ export function AdvancedCvIndexPage() {
           </button>
         </div>
       </div>
+
+      {starterOpen && (
+        <StarterKitsDialog
+          kind="advanced_cv"
+          creating={creating}
+          onSelectKit={(kit) => void handleCreateFromStarterKit(kit)}
+          onClose={() => setStarterOpen(false)}
+        />
+      )}
 
       {error && (
         <p className="dash-error" role="alert">
@@ -574,6 +625,11 @@ export function BlankCvWorkspace() {
   const [design, setDesign] = useState<Record<string, any>>({});
   const [importOpen, setImportOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [exportsOpen, setExportsOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [selectionRange, setSelectionRange] = useState<{ text: string; start: number; end: number } | null>(null);
   const careerProfileQuery = useWorkspace<CareerProfileData>('career-profile', '/career-profile/');
   const imports: DocumentImports = (design.imports as DocumentImports) || {};
   const careerProfileStale = Boolean(
@@ -1021,8 +1077,16 @@ export function BlankCvWorkspace() {
   const savedCompiledPreview = useMemo(() => compileAndRenderCvWorkspace(savedFiles), [savedFiles]);
   const canAnalyzeSavedCv = Boolean(savedCompiledPreview.html.trim());
 
+  function recordExport(format: 'pdf' | 'docx') {
+    void api(`/projects/${projectId}/exports/`, {
+      method: 'POST',
+      body: JSON.stringify({ format }),
+    }).catch(() => {});
+  }
+
   // Step 6: Download as PDF / Open PDF in New Tab (preserves exact A4 layout, formatting & multi-page pagination without blank spillover pages)
   function handleExportPdf(openInNewTab = false) {
+    recordExport('pdf');
     const pagesToRender =
       compiledPreview.pages.length > 0
         ? compiledPreview.pages
@@ -1138,6 +1202,7 @@ export function BlankCvWorkspace() {
       const docxBlob = await exportRenderedCvToDocx(fullRenderedHtml, title || 'Untitled');
       const safeSlug = (title || 'Untitled').replace(/[^a-zA-Z0-9_-]+/g, '-') || 'Untitled';
       downloadBlobFile(docxBlob, `${safeSlug}.docx`);
+      recordExport('docx');
     } catch (err) {
       setMessage((err as Error).message);
     } finally {
@@ -1572,6 +1637,38 @@ export function BlankCvWorkspace() {
                 <GitBranch size={16} />
                 Job Versions
               </button>
+              <button
+                type="button"
+                className="adv-cv-ribbon-btn"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <History size={16} />
+                Version History
+              </button>
+              <button
+                type="button"
+                className="adv-cv-ribbon-btn"
+                onClick={() => setShareOpen(true)}
+              >
+                <Share2 size={16} />
+                Share Link
+              </button>
+              <button
+                type="button"
+                className="adv-cv-ribbon-btn"
+                onClick={() => setExportsOpen(true)}
+              >
+                <BarChart3 size={16} />
+                Export History
+              </button>
+              <button
+                type="button"
+                className="adv-cv-ribbon-btn"
+                onClick={() => setAssistantOpen(true)}
+              >
+                <Wand2 size={16} />
+                AI Assistant
+              </button>
               <span className="adv-cv-ribbon-divider" aria-hidden="true" />
               <button
                 type="button"
@@ -1717,6 +1814,60 @@ export function BlankCvWorkspace() {
           onClose={() => setVersionsOpen(false)}
         />
       )}
+      {historyOpen && (
+        <VersionHistoryDialog
+          projectId={projectId}
+          onRestored={(restored) => {
+            const rawFiles = restored.content?.files ?? {};
+            const rawFolders = computeAllFolderPaths(restored.content?.folders ?? [], Object.keys(rawFiles));
+            setTitle(restored.title);
+            savedTitle.current = restored.title;
+            setFiles(rawFiles);
+            setSavedFiles(rawFiles);
+            setDesign(restored.design ?? {});
+            setFolders(rawFolders);
+            setExpandedFolders(new Set(rawFolders));
+            const keys = Object.keys(rawFiles);
+            setOpenTabs(keys);
+            setActiveTab(keys[0] || '');
+            setStatus('saved');
+            setToast(`Restored Revision #${restored.restoredFromRevision}.`);
+          }}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
+      {shareOpen && (
+        <ShareLinkDialog
+          projectId={projectId}
+          projectTitle={title}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+      {exportsOpen && (
+        <ExportHistoryDialog
+          projectId={projectId}
+          onClose={() => setExportsOpen(false)}
+        />
+      )}
+      {assistantOpen && (
+        <WritingAssistantDialog
+          selectedText={selectionRange?.text ?? ''}
+          renderedHtml={compiledPreview.html}
+          careerProfile={careerProfileQuery.data}
+          onApplySelection={
+            selectionRange && activeTab
+              ? (improvedText) => {
+                  const current = files[activeTab] ?? '';
+                  const next = `${current.slice(0, selectionRange.start)}${improvedText}${current.slice(selectionRange.end)}`;
+                  handleCodeChange(next);
+                  setSelectionRange(null);
+                  setToast('Applied improved text to editor.');
+                }
+              : undefined
+          }
+          onClose={() => setAssistantOpen(false)}
+        />
+      )}
 
       {/* STEP 7: CV ANALYSIS TOOLS (ENABLED AFTER SAVING CV, ANALYZING SAVED RENDERED CV) */}
       <CvAnalysisToolbar
@@ -1750,6 +1901,13 @@ export function BlankCvWorkspace() {
       )}
 
       {/* STEP 5: THREE-PANEL WORKSPACE (FILE EXPLORER, CODE EDITOR, LIVE PREVIEW) */}
+      <LiveMetricsBar
+        html={compiledPreview.html}
+        pageCount={compiledPreview.pages.length}
+        recommendedMaxPages={2}
+        documentLabel="CV"
+      />
+
       <div className="adv-cv-body" data-view={viewMode}>
         {/* 5.1 LEFT PANEL — FILE EXPLORER */}
         {viewMode === 'split' && (
@@ -1949,6 +2107,10 @@ export function BlankCvWorkspace() {
                     allFilePaths={Object.keys(files)}
                     diagnostics={compiledPreview.diagnostics}
                     onChange={handleCodeChange}
+                    onImproveSelection={(sel) => {
+                      setSelectionRange(sel);
+                      setAssistantOpen(true);
+                    }}
                   />
                 </div>
               )
