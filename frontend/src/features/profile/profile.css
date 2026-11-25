@@ -258,51 +258,136 @@
 .career-editor {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 28px;
+  width: 100%;
 }
 
 .career-editor-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border, #e2e8f0);
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .career-editor-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
+.career-editor-heading h3,
 .career-editor-heading h4 {
   margin: 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: var(--navy, #0B1F3A);
+}
+
+.career-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--muted, #666);
+}
+
+.career-editor input:not([type="checkbox"]),
+.career-editor select,
+.career-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--navy, #0B1F3A);
+  font: inherit;
   font-size: 0.95rem;
+  line-height: 1.45;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.career-editor input:not([type="checkbox"]) {
+  min-height: 44px;
+}
+
+.career-editor textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.career-editor input:not([type="checkbox"]):focus,
+.career-editor select:focus,
+.career-editor textarea:focus {
+  outline: 2px solid var(--navy, #0B1F3A);
+  border-color: transparent;
 }
 
 .career-editor-entry {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 10px;
+  gap: 16px;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   background: var(--surface-muted, #f8fafc);
+}
+
+.career-editor-entry legend {
+  padding: 0 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--navy, #0B1F3A);
 }
 
 .career-editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 16px 20px;
 }
 
 .career-editor-grid .is-wide {
   grid-column: 1 / -1;
 }
 
-@media (max-width: 600px) {
+.career-editor-grid .checkbox-label {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: auto;
+  padding: 4px 0;
+  color: var(--navy, #0B1F3A);
+  cursor: pointer;
+}
+
+.career-editor-grid .checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--navy, #0B1F3A);
+}
+
+@media (max-width: 720px) {
+  .career-editor-section {
+    padding: 16px;
+  }
+
+  .career-editor-entry {
+    padding: 14px;
+  }
+
   .career-editor-grid {
     grid-template-columns: 1fr;
+    gap: 14px;
   }
 }
